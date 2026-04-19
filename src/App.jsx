@@ -159,6 +159,21 @@ function PostCard({ post, semanaNum, onEdit, onRegenerate, regeneratingId }) {
             }} />
           </div>
         </div>
+        {post.promptImagen && (
+          <div style={{ marginTop:10 }}>
+            <div style={{ fontSize:10, color:'#9F5FF0', letterSpacing:'0.1em', textTransform:'uppercase', marginBottom:5, fontFamily:'Georgia,serif' }}>🎨 Prompt de imagen</div>
+            <textarea
+              value={post.promptImagen}
+              onChange={e=>onEdit(semanaNum,post.id,'promptImagen',e.target.value)}
+              style={{
+                width:'100%', background:'#1A1A24', border:`1px solid #9F5FF040`,
+                borderRadius:6, color:'#C8A8F0', fontSize:12, lineHeight:1.6,
+                padding:'8px 11px', resize:'vertical', minHeight:48,
+                fontFamily:'Georgia,serif', boxSizing:'border-box', outline:'none'
+              }}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -252,7 +267,7 @@ DEVUELVE SOLO JSON VÁLIDO sin markdown:
     { "numero": 1, "posts": [
       { "id": "s1-1", "red": "Instagram", "tipo": "Post", "pilar": "Educativo",
         "copy": "texto completo listo para publicar", "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5",
-        "cta": "call to action específico", "dia": "Lunes" }
+        "cta": "call to action específico", "dia": "Lunes", "promptImagen": "prompt en inglés para generar la imagen con IA, estilo visual, composición, colores y mood. Máximo 2 oraciones." }
     ]},
     { "numero": 2, "posts": [...] },
     { "numero": 3, "posts": [...] },
@@ -281,10 +296,10 @@ DEVUELVE SOLO JSON VÁLIDO sin markdown:
       const prompt = `Regenera este post para "${form.negocio}" (${form.industria||"negocio"}).
 Red: ${post.red} | Tipo: ${post.tipo} | Pilar: ${post.pilar} | Mes: ${form.mes} | Tono: ${form.tono}
 ${usePalette?`Paleta: ${palette.join(", ")}`:""}
-Devuelve SOLO JSON sin markdown: {"copy":"...","hashtags":"...","cta":"...","dia":"..."}`;
+Devuelve SOLO JSON sin markdown: {"copy":"...","hashtags":"...","cta":"...","dia":"...","promptImagen":"prompt en inglés para generar imagen con IA"}`;
       const raw  = await callClaude([{role:"user",content:prompt}], 600);
       const data = JSON.parse(cleanJSON(raw));
-      ["copy","hashtags","cta","dia"].forEach(f=>{if(data[f])updatePost(semanaNum,post.id,f,data[f]);});
+      ["copy","hashtags","cta","dia","promptImagen"].forEach(f=>{if(data[f])updatePost(semanaNum,post.id,f,data[f]);});
     } catch(e){ console.error(e); }
     finally { setRegeneratingId(null); }
   };
