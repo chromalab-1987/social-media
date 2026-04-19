@@ -50,34 +50,15 @@ const getMonthOptions = () => {
 /* ─── API ────────────────────────────────────────────────────────── */
 const cleanJSON = txt => txt.replace(/```json|```/g,"").trim();
 
-const callClaude = async (messages, maxTokens=4000, useSearch=false) => {
-  const bodyBase = {
-    model: "claude-sonnet-4-20250514",
-    max_tokens: maxTokens,
-    ...(useSearch && { tools: [{ type:"web_search_20250305", name:"web_search" }] })
-  };
-  let msgs = [...messages];
-  for (let i=0; i<10; i++) {
-    const res  = await fetch("https://api.anthropic.com/v1/messages", {
-      method:"POST", headers:{"Content-Type":"application/json"},
-      body: JSON.stringify({...bodyBase, messages: msgs})
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error?.message || "Error de API");
-    const text = (data.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
-    if (data.stop_reason==="end_turn") return text;
-    if (data.stop_reason==="tool_use") {
-      msgs = [...msgs,
-        { role:"assistant", content: data.content },
-        { role:"user", content: data.content.filter(b=>b.type==="tool_use").map(b=>({
-          type:"tool_result", tool_use_id:b.id, content:"Search executed"
-        }))}
-      ];
-      continue;
-    }
-    return text;
-  }
-  throw new Error("Demasiados ciclos");
+const callClaude = async (messages, maxTokens=4000) => {
+  const res = await fetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages, max_tokens: maxTokens }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Error de API");
+  return data.text;
 };
 
 /* ─── COMPONENTS ─────────────────────────────────────────────────── */
