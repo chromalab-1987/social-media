@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
 const C = {
@@ -695,6 +695,12 @@ export default function App() {
   const [editingEvento, setEditingEvento] = useState(null);
   const [dragPost, setDragPost]         = useState(null);
 
+  /* persistence state */
+  const [hasSaved, setHasSaved]   = useState(false); // localStorage has data
+  const [savedFlash, setSavedFlash] = useState(false); // "✓ Guardado" toast
+  const [copyFlash, setCopyFlash]   = useState(false); // "✓ Link copiado" toast
+  const importRef = useRef(null);
+
   /* helpers */
   const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -762,6 +768,110 @@ export default function App() {
   const addEvento    = (ev) => setEventos(prev => [...prev, ev]);
   const editEvento   = (ev) => setEventos(prev => prev.map(e => e.id === ev.id ? ev : e));
   const deleteEvento = (id) => setEventos(prev => prev.filter(e => e.id !== id));
+
+  /* ─── PERSISTENCE ─────────────────────────────────────────────── */
+  const STORAGE_KEY = "chroma_strategy_v1";
+
+  // Encode for URL hash (handles unicode/Spanish)
+  const encodePayload = (data) => {
+    const str   = JSON.stringify(data);
+    const bytes = new TextEncoder().encode(str);
+    return btoa(String.fromCharCode(...bytes));
+  };
+  const decodePayload = (encoded) => {
+    const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+    return JSON.parse(new TextDecoder().decode(bytes));
+  };
+
+  // On mount: check URL hash first, then localStorage
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      try {
+        const data = decodePayload(hash);
+        if (data.strategy) {
+          setStrategy(data.strategy);
+          setEventos(data.eventos || []);
+          setForm(f => ({ ...f, ...data.form }));
+          setScreen("result");
+          history.replaceState(null, "", window.location.pathname); // clean URL
+          return;
+        }
+      } catch (e) { /* ignore bad hash */ }
+    }
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) setHasSaved(true);
+  }, []);
+
+  // Auto-save to localStorage whenever strategy or eventos change
+  useEffect(() => {
+    if (!strategy) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ strategy, eventos, form }));
+      setSavedFlash(true);
+      const t = setTimeout(() => setSavedFlash(false), 2000);
+      return () => clearTimeout(t);
+    } catch (e) { /* quota exceeded */ }
+  }, [strategy, eventos]);
+
+  const restoreSaved = () => {
+    try {
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      if (data?.strategy) {
+        setStrategy(data.strategy);
+        setEventos(data.eventos || []);
+        setForm(f => ({ ...f, ...data.form }));
+        setScreen("result");
+      }
+    } catch (e) {}
+  };
+
+  const clearSaved = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setHasSaved(false);
+  };
+
+  // Export: download as .json
+  const exportJSON = () => {
+    const payload = JSON.stringify({ strategy, eventos, form }, null, 2);
+    const blob = new Blob([payload], { type: "application/json" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href = url;
+    a.download = `chroma-${form.negocio.replace(/\s+/g, "-")}-${form.mes.replace(" ", "-")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Import: load from .json file
+  const importJSON = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        if (data?.strategy) {
+          setStrategy(data.strategy);
+          setEventos(data.eventos || []);
+          setForm(f => ({ ...f, ...data.form }));
+          setScreen("result");
+        }
+      } catch (err) { alert("Archivo inválido. Usá un .json exportado desde Chroma."); }
+    };
+    reader.readAsText(file);
+    e.target.value = ""; // reset so same file can be re-imported
+  };
+
+  // Share: encode to URL hash + copy to clipboard
+  const copyShareURL = () => {
+    const encoded = encodePayload({ strategy, eventos, form });
+    const url = `${window.location.origin}${window.location.pathname}#${encoded}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopyFlash(true);
+      setTimeout(() => setCopyFlash(false), 2500);
+    });
+  };
 
   /* prompt & generate */
   const buildPrompt = () => {
@@ -863,6 +973,31 @@ export default function App() {
       <style>{GLOBAL_CSS}</style>
       {headerEl(null)}
       <div style={{ maxWidth: 800, margin: "0 auto", padding: "48px 28px 80px" }}>
+
+        {/* Restore prompt */}
+        {hasSaved && screen === "form" && (
+          <div style={{
+            background: C.surf2, border: `1px solid ${C.accent}55`, borderRadius: 10,
+            padding: "16px 20px", marginBottom: 28,
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+            animation: "fadeIn .4s ease",
+          }}>
+            <div>
+              <div style={{ fontSize: 13, color: C.text, marginBottom: 3 }}>💾 Tenés una estrategia guardada</div>
+              <div style={{ fontSize: 12, color: C.muted }}>Podés continuar donde dejaste o empezar una nueva.</div>
+            </div>
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button onClick={restoreSaved} style={{
+                background: C.accent, border: "none", borderRadius: 7,
+                color: C.text, fontSize: 12, padding: "8px 16px", cursor: "pointer", fontFamily: "Georgia,serif",
+              }}>Continuar</button>
+              <button onClick={clearSaved} style={{
+                background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7,
+                color: C.muted, fontSize: 12, padding: "8px 14px", cursor: "pointer", fontFamily: "Georgia,serif",
+              }}>Descartar</button>
+            </div>
+          </div>
+        )}
 
         <div style={{ marginBottom: 46, animation: "fadeIn .5s ease" }}>
           <div style={{ display: "inline-block", background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accentLt, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 16 }}>Generador IA</div>
@@ -1013,6 +1148,9 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "Georgia,serif" }}>
       <style>{GLOBAL_CSS}</style>
+      {/* Hidden file input for JSON import */}
+      <input ref={importRef} type="file" accept=".json" onChange={importJSON} style={{ display: "none" }} />
+
       {headerEl(
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {/* View toggle */}
@@ -1027,6 +1165,32 @@ export default function App() {
             color: C.text, fontSize: 12, padding: "8px 14px",
             cursor: "pointer", fontFamily: "Georgia,serif",
           }}>+ Agregar</button>
+
+          {/* Save indicator */}
+          {savedFlash && (
+            <span style={{ fontSize: 11, color: C.teal, animation: "fadeIn .2s ease" }}>✓ Guardado</span>
+          )}
+
+          {/* Export JSON */}
+          <button onClick={exportJSON} title="Descargar como archivo .json" style={{
+            background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 8,
+            color: C.text, fontSize: 12, padding: "8px 13px", cursor: "pointer", fontFamily: "Georgia,serif",
+          }}>⬇ Exportar</button>
+
+          {/* Import JSON */}
+          <button onClick={() => importRef.current?.click()} title="Cargar estrategia desde archivo .json" style={{
+            background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 8,
+            color: C.text, fontSize: 12, padding: "8px 13px", cursor: "pointer", fontFamily: "Georgia,serif",
+          }}>📂 Importar</button>
+
+          {/* Share URL */}
+          <button onClick={copyShareURL} title="Copiar link con la estrategia codificada" style={{
+            background: copyFlash ? C.teal : C.surf2,
+            border: `1px solid ${copyFlash ? C.teal : C.border}`, borderRadius: 8,
+            color: C.text, fontSize: 12, padding: "8px 13px", cursor: "pointer",
+            fontFamily: "Georgia,serif", transition: "all .25s",
+          }}>{copyFlash ? "✓ Link copiado" : "🔗 Compartir"}</button>
+
           <button onClick={() => window.print()} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12, padding: "8px 15px", cursor: "pointer", fontFamily: "Georgia,serif" }}>⬇ PDF</button>
           <button onClick={() => { setScreen("form"); setStrategy(null); setEventos([]); }} style={{ background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12, padding: "8px 15px", cursor: "pointer", fontFamily: "Georgia,serif" }}>← Nueva</button>
         </div>
