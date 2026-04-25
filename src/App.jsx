@@ -902,7 +902,7 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
 
       for (let n = 1; n <= 4; n++) {
         setLoadingMsg(`Generando semana ${n} de 4…`);
-        const raw  = await callClaude([{ role: "user", content: buildWeekPrompt(n, n === 1) }], 2000);
+        const raw  = await callClaude([{ role: "user", content: buildWeekPrompt(n, n === 1) }], 4000);
         const data = JSON.parse(cleanJSON(raw));
         if (n === 1 && data.resumen) resumen = data.resumen;
         semanas.push({ numero: n, posts: data.posts || [] });
