@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
 const C = {
@@ -699,7 +699,6 @@ export default function App() {
   const [hasSaved, setHasSaved]   = useState(false); // localStorage has data
   const [savedFlash, setSavedFlash] = useState(false); // "✓ Guardado" toast
   const [copyFlash, setCopyFlash]   = useState(false); // "✓ Link copiado" toast
-  const importRef = useRef(null);
 
   /* helpers */
   const setField = (k, v) => setForm(f => ({ ...f, [k]: v }));
@@ -831,38 +830,6 @@ export default function App() {
     setHasSaved(false);
   };
 
-  // Export: download as .json
-  const exportJSON = () => {
-    const payload = JSON.stringify({ strategy, eventos, form }, null, 2);
-    const blob = new Blob([payload], { type: "application/json" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url;
-    a.download = `chroma-${form.negocio.replace(/\s+/g, "-")}-${form.mes.replace(" ", "-")}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Import: load from .json file
-  const importJSON = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const data = JSON.parse(ev.target.result);
-        if (data?.strategy) {
-          setStrategy(data.strategy);
-          setEventos(data.eventos || []);
-          setForm(f => ({ ...f, ...data.form }));
-          setScreen("result");
-        }
-      } catch (err) { alert("Archivo inválido. Usá un .json exportado desde Chroma."); }
-    };
-    reader.readAsText(file);
-    e.target.value = ""; // reset so same file can be re-imported
-  };
-
   // Share: encode to URL hash + copy to clipboard
   const copyShareURL = () => {
     const encoded = encodePayload({ strategy, eventos, form });
@@ -874,29 +841,83 @@ export default function App() {
   };
 
   /* prompt & generate */
-  const buildPrompt = () => {
+  const buildWeekPrompt = (semanaNum, includeResumen) => {
     const redesInfo = form.redes.length > 0
       ? form.redes.map(r => {
           const tipos = Object.entries(contenido[r] || {}).filter(([, v]) => v > 0).map(([t, v]) => `${t}: ${v}`).join(", ");
           return `  - ${r}: ${tipos} por semana`;
         }).join("\n")
       : "  - Instagram: Posts: 3, Historias: 5, Reels: 2 por semana";
-    const totalPorSemana = form.redes.reduce((acc, r) => acc + Object.values(contenido[r] || {}).reduce((a, v) => a + v, 0), 0) || 10;
-    return `Eres un estratega experto en redes sociales. Genera una estrategia mensual completa y CONCRETA.\n\nNEGOCIO:\n- Nombre: ${form.negocio}\n- Industria: ${form.industria || "No especificada"}\n${form.sitioWeb ? `- Sitio web: ${form.sitioWeb} — analizá este sitio para entender el tono, servicios y propuesta de valor real` : ""}\n- Audiencia: ${form.audiencia || "Audiencia general"}\n- Objetivo del mes: ${form.objetivo || "Aumentar presencia y engagement"}\n- Mes: ${form.mes}\n- Tono: ${form.tono}\n${usePalette && palette.length > 0 ? `- Paleta: ${palette.join(", ")}` : ""}\n\nFRECUENCIA (por semana):\n${redesInfo}\nTotal publicaciones por semana: ${totalPorSemana}\n\nPILARES: ${form.pilares.join(", ") || "Educativo, Inspiracional, Promocional"}\n\nINSTRUCCIONES:\n- Copies REALES y listos para publicar, con emojis naturales según el tono\n- Distribuir en días reales (Lunes a Domingo)\n- Hashtags variados y relevantes (no repetir los mismos en cada post)\n- CTA específico y accionable\n- Considerar fechas/eventos relevantes de ${form.mes}\n${form.sitioWeb ? "- Basar el contenido en la propuesta de valor real según el sitio web" : ""}\n\nDEVUELVE SOLO JSON VÁLIDO sin markdown:\n{\n  "resumen": "enfoque estratégico del mes en 2-3 oraciones",\n  "semanas": [\n    { "numero": 1, "posts": [\n      { "id": "s1-1", "red": "Instagram", "tipo": "Post", "pilar": "Educativo",\n        "copy": "texto completo listo para publicar", "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5",\n        "cta": "call to action específico", "dia": "Lunes", "promptImagen": "prompt en inglés para generar la imagen con IA, estilo visual, composición, colores y mood. Máximo 2 oraciones." }\n    ]},\n    { "numero": 2, "posts": [...] },\n    { "numero": 3, "posts": [...] },\n    { "numero": 4, "posts": [...] }\n  ]\n}`;
+    const total = form.redes.reduce((acc, r) => acc + Object.values(contenido[r] || {}).reduce((a, v) => a + v, 0), 0) || 10;
+
+    const dias = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+    // Suggest realistic days for this week to help the model
+    const dayHints = dias.slice(0, Math.min(7, total)).join(", ");
+
+    return `Sos un estratega experto en redes sociales. Generá posts REALES para la semana ${semanaNum} de 4 del mes de ${form.mes}.
+
+NEGOCIO: ${form.negocio}${form.industria ? ` — ${form.industria}` : ""}
+${form.sitioWeb ? `Sitio web: ${form.sitioWeb}\n` : ""}AUDIENCIA: ${form.audiencia || "General"}
+OBJETIVO: ${form.objetivo || "Aumentar presencia y engagement"}
+TONO: ${form.tono}
+PILARES: ${form.pilares.join(", ") || "Educativo, Inspiracional, Promocional"}
+${usePalette && palette.length > 0 ? `PALETA: ${palette.join(", ")}\n` : ""}
+REDES Y CANTIDAD:
+${redesInfo}
+Total posts esta semana: ${total}
+
+INSTRUCCIONES:
+- Distribuí los ${total} posts entre días variados (preferentemente: ${dayHints})
+- Copies completos y listos para publicar, con emojis naturales
+- Hashtags distintos en cada post (5-8 por post)
+- CTA específico y accionable por post
+- promptImagen: prompt en inglés para generar imagen con IA (composición, estilo, mood, colores). Máx 2 oraciones.
+
+Devolvé SOLO JSON válido, sin markdown, sin texto extra:
+{${includeResumen ? `
+  "resumen": "enfoque estratégico del mes completo en 2-3 oraciones",` : ""}
+  "posts": [
+    {
+      "id": "s${semanaNum}-1",
+      "red": "Instagram",
+      "tipo": "Post",
+      "pilar": "Educativo",
+      "copy": "texto completo del post listo para publicar",
+      "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5",
+      "cta": "llamada a la acción específica",
+      "dia": "Lunes",
+      "promptImagen": "prompt en inglés para IA image generator"
+    }
+  ]
+}`;
   };
 
   const handleGenerate = async () => {
     if (!form.negocio) { setError("Ingresá el nombre del negocio para continuar."); return; }
     setError(""); setLoading(true);
-    setLoadingMsg(form.sitioWeb ? "Analizando el sitio web y generando estrategia…" : "Generando tu estrategia mensual…");
+
     try {
-      const raw  = await callClaude([{ role: "user", content: buildPrompt() }], 4000);
-      const data = JSON.parse(cleanJSON(raw));
-      if (!data.semanas) throw new Error("Respuesta inesperada de la IA");
-      setStrategy(data); setEventos([]); setScreen("result"); setViewMode("list"); setCurrentWeek(1);
+      const semanas = [];
+      let resumen   = "";
+
+      for (let n = 1; n <= 4; n++) {
+        setLoadingMsg(`Generando semana ${n} de 4…`);
+        const raw  = await callClaude([{ role: "user", content: buildWeekPrompt(n, n === 1) }], 2000);
+        const data = JSON.parse(cleanJSON(raw));
+        if (n === 1 && data.resumen) resumen = data.resumen;
+        semanas.push({ numero: n, posts: data.posts || [] });
+      }
+
+      setStrategy({ resumen, semanas });
+      setEventos([]);
+      setScreen("result");
+      setViewMode("list");
+      setCurrentWeek(1);
     } catch (e) {
       setError(`Error: ${e.message}. Intentá de nuevo.`);
-    } finally { setLoading(false); }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleRegenerate = async (semanaNum, post) => {
@@ -1148,8 +1169,6 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "Georgia,serif" }}>
       <style>{GLOBAL_CSS}</style>
-      {/* Hidden file input for JSON import */}
-      <input ref={importRef} type="file" accept=".json" onChange={importJSON} style={{ display: "none" }} />
 
       {headerEl(
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
@@ -1170,18 +1189,6 @@ export default function App() {
           {savedFlash && (
             <span style={{ fontSize: 11, color: C.teal, animation: "fadeIn .2s ease" }}>✓ Guardado</span>
           )}
-
-          {/* Export JSON */}
-          <button onClick={exportJSON} title="Descargar como archivo .json" style={{
-            background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 8,
-            color: C.text, fontSize: 12, padding: "8px 13px", cursor: "pointer", fontFamily: "Georgia,serif",
-          }}>⬇ Exportar</button>
-
-          {/* Import JSON */}
-          <button onClick={() => importRef.current?.click()} title="Cargar estrategia desde archivo .json" style={{
-            background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 8,
-            color: C.text, fontSize: 12, padding: "8px 13px", cursor: "pointer", fontFamily: "Georgia,serif",
-          }}>📂 Importar</button>
 
           {/* Share URL */}
           <button onClick={copyShareURL} title="Copiar link con la estrategia codificada" style={{
