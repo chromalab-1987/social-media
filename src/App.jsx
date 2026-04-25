@@ -229,8 +229,9 @@ function PostCard({ post, semanaNum, onEdit, onRegenerate, regeneratingId }) {
 }
 
 /* ─── ADD PANEL ──────────────────────────────────────────────────── */
-function AddPanel({ onClose, onAddPost, onAddEvento, brandForm }) {
-  const [tab, setTab] = useState("post");
+function AddPanel({ onClose, onAddPost, onAddEvento, onEditEvento, onDeleteEvento, brandForm, editingEvento }) {
+  const isEditingEvento = !!editingEvento;
+  const [tab, setTab] = useState(isEditingEvento ? "evento" : "post");
   const [postForm, setPostForm] = useState({
     red: brandForm.redes[0] || "Instagram",
     tipo: "",
@@ -242,12 +243,11 @@ function AddPanel({ onClose, onAddPost, onAddEvento, brandForm }) {
     cta: "",
     promptImagen: "",
   });
-  const [eventoForm, setEventoForm] = useState({
-    titulo: "",
-    semana: 1,
-    dia: "Lunes",
-    color: EVENT_COLORS[0],
-  });
+  const [eventoForm, setEventoForm] = useState(
+    editingEvento
+      ? { titulo: editingEvento.titulo, semana: editingEvento.semana, dia: editingEvento.dia, color: editingEvento.color }
+      : { titulo: "", semana: 1, dia: "Lunes", color: EVENT_COLORS[0] }
+  );
 
   const tipos = TIPOS_POR_RED[postForm.red] || [];
   const setPF = (k, v) => setPostForm(f => ({ ...f, [k]: v }));
@@ -260,7 +260,11 @@ function AddPanel({ onClose, onAddPost, onAddEvento, brandForm }) {
   };
   const handleEventoSubmit = () => {
     if (!eventoForm.titulo.trim()) return;
-    onAddEvento({ ...eventoForm, id: `ev-${Date.now()}` });
+    if (isEditingEvento) {
+      onEditEvento({ ...editingEvento, ...eventoForm });
+    } else {
+      onAddEvento({ ...eventoForm, id: `ev-${Date.now()}` });
+    }
     onClose();
   };
 
@@ -284,21 +288,25 @@ function AddPanel({ onClose, onAddPost, onAddEvento, brandForm }) {
         animation: "slideIn .25s ease",
       }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-          <span style={{ fontSize: 15, color: C.text, fontFamily: "Georgia,serif" }}>Agregar al calendario</span>
+          <span style={{ fontSize: 15, color: C.text, fontFamily: "Georgia,serif" }}>
+            {isEditingEvento ? "Editar evento" : "Agregar al calendario"}
+          </span>
           <button onClick={onClose} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 22, cursor: "pointer", lineHeight: 1 }}>✕</button>
         </div>
 
-        {/* Tabs */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 22, background: C.surf2, borderRadius: 8, padding: 4 }}>
-          {[["post", "📝 Post manual"], ["evento", "📌 Evento / Festivo"]].map(([k, label]) => (
-            <button key={k} onClick={() => setTab(k)} style={{
-              flex: 1, padding: "8px 10px", borderRadius: 6, border: "none",
-              background: tab === k ? C.accent : "transparent",
-              color: tab === k ? C.text : C.muted,
-              fontSize: 12, cursor: "pointer", fontFamily: "Georgia,serif", transition: "all .15s",
-            }}>{label}</button>
-          ))}
-        </div>
+        {/* Tabs — hidden in edit evento mode */}
+        {!isEditingEvento && (
+          <div style={{ display: "flex", gap: 6, marginBottom: 22, background: C.surf2, borderRadius: 8, padding: 4 }}>
+            {[["post", "📝 Post manual"], ["evento", "📌 Evento / Festivo"]].map(([k, label]) => (
+              <button key={k} onClick={() => setTab(k)} style={{
+                flex: 1, padding: "8px 10px", borderRadius: 6, border: "none",
+                background: tab === k ? C.accent : "transparent",
+                color: tab === k ? C.text : C.muted,
+                fontSize: 12, cursor: "pointer", fontFamily: "Georgia,serif", transition: "all .15s",
+              }}>{label}</button>
+            ))}
+          </div>
+        )}
 
         {tab === "post" && (
           <div>
@@ -417,7 +425,15 @@ function AddPanel({ onClose, onAddPost, onAddEvento, brandForm }) {
               width: "100%", background: C.teal, border: "none", borderRadius: 8,
               color: C.text, fontSize: 14, padding: "14px", cursor: "pointer",
               fontFamily: "Georgia,serif", letterSpacing: "0.02em",
-            }}>📌 Agregar evento</button>
+            }}>{isEditingEvento ? "💾 Guardar cambios" : "📌 Agregar evento"}</button>
+
+            {isEditingEvento && (
+              <button onClick={() => { onDeleteEvento(editingEvento.id); onClose(); }} style={{
+                width: "100%", background: "transparent", border: `1px solid #E6394655`,
+                borderRadius: 8, color: "#E63946", fontSize: 13, padding: "11px",
+                cursor: "pointer", fontFamily: "Georgia,serif", marginTop: 10,
+              }}>🗑 Eliminar evento</button>
+            )}
           </div>
         )}
       </div>
@@ -426,7 +442,7 @@ function AddPanel({ onClose, onAddPost, onAddEvento, brandForm }) {
 }
 
 /* ─── CALENDAR MONTH ─────────────────────────────────────────────── */
-function CalendarMonth({ strategy, eventos, firstDay, dragPost, setDragPost, movePost }) {
+function CalendarMonth({ strategy, eventos, firstDay, dragPost, setDragPost, movePost, onEditEvento, onDeleteEvento }) {
   const daysInMonth = getDaysInMonth(firstDay);
   const firstDOW    = (firstDay.getDay() + 6) % 7; // 0=Mon
 
@@ -486,11 +502,20 @@ function CalendarMonth({ strategy, eventos, firstDay, dragPost, setDragPost, mov
             >
               <div style={{ fontSize: 11, color: C.muted, marginBottom: 4, fontFamily: "Georgia,serif" }}>{dateNum}</div>
               {evs.map(ev => (
-                <div key={ev.id} title={ev.titulo} style={{
-                  background: ev.color, borderRadius: 3, padding: "2px 5px",
+                <div key={ev.id} style={{
+                  background: ev.color, borderRadius: 3, padding: "2px 4px",
                   fontSize: 9, color: "#fff", marginBottom: 2, fontWeight: 700,
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}>📌 {ev.titulo}</div>
+                  overflow: "hidden", display: "flex", alignItems: "center", gap: 2,
+                }}>
+                  <span onClick={() => onEditEvento(ev)} title="Editar" style={{
+                    flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  }}>📌 {ev.titulo}</span>
+                  <span onClick={() => onDeleteEvento(ev.id)} title="Eliminar" style={{
+                    cursor: "pointer", opacity: 0.75, flexShrink: 0, lineHeight: 1,
+                    padding: "0 1px", fontWeight: 400, fontSize: 10,
+                  }}>✕</span>
+                </div>
               ))}
               {posts.map(post => (
                 <div
@@ -523,7 +548,7 @@ function CalendarMonth({ strategy, eventos, firstDay, dragPost, setDragPost, mov
 }
 
 /* ─── CALENDAR WEEK ──────────────────────────────────────────────── */
-function CalendarWeek({ semana, strategy, eventos, firstDay, dragPost, setDragPost, movePost }) {
+function CalendarWeek({ semana, strategy, eventos, firstDay, dragPost, setDragPost, movePost, onEditEvento, onDeleteEvento }) {
   const daysInMonth = getDaysInMonth(firstDay);
   const weekStart   = (semana - 1) * 7 + 1;
   const weekEnd     = Math.min(semana * 7, daysInMonth);
@@ -596,7 +621,14 @@ function CalendarWeek({ semana, strategy, eventos, firstDay, dragPost, setDragPo
                   background: ev.color + "22", border: `1px solid ${ev.color}66`,
                   borderRadius: 5, padding: "5px 8px", fontSize: 10,
                   color: ev.color, fontWeight: 700,
-                }}>📌 {ev.titulo}</div>
+                  display: "flex", alignItems: "center", gap: 4,
+                }}>
+                  <span onClick={() => onEditEvento(ev)} style={{ flex: 1, cursor: "pointer" }}>📌 {ev.titulo}</span>
+                  <span onClick={() => onDeleteEvento(ev.id)} title="Eliminar" style={{
+                    cursor: "pointer", opacity: 0.6, fontSize: 11, fontWeight: 400,
+                    lineHeight: 1, flexShrink: 0,
+                  }}>✕</span>
+                </div>
               ))}
               {posts.map(post => (
                 <div
@@ -660,6 +692,7 @@ export default function App() {
   const [currentWeek, setCurrentWeek]   = useState(1);
   const [eventos, setEventos]           = useState([]);
   const [showAddPanel, setShowAddPanel] = useState(false);
+  const [editingEvento, setEditingEvento] = useState(null);
   const [dragPost, setDragPost]         = useState(null);
 
   /* helpers */
@@ -726,7 +759,9 @@ export default function App() {
     }));
   };
 
-  const addEvento = (ev) => setEventos(prev => [...prev, ev]);
+  const addEvento    = (ev) => setEventos(prev => [...prev, ev]);
+  const editEvento   = (ev) => setEventos(prev => prev.map(e => e.id === ev.id ? ev : e));
+  const deleteEvento = (id) => setEventos(prev => prev.filter(e => e.id !== id));
 
   /* prompt & generate */
   const buildPrompt = () => {
@@ -1064,6 +1099,8 @@ export default function App() {
               dragPost={dragPost}
               setDragPost={setDragPost}
               movePost={movePost}
+              onEditEvento={(ev) => { setEditingEvento(ev); setShowAddPanel(true); }}
+              onDeleteEvento={deleteEvento}
             />
           </div>
         )}
@@ -1082,6 +1119,8 @@ export default function App() {
               dragPost={dragPost}
               setDragPost={setDragPost}
               movePost={movePost}
+              onEditEvento={(ev) => { setEditingEvento(ev); setShowAddPanel(true); }}
+              onDeleteEvento={deleteEvento}
             />
           </div>
         )}
@@ -1096,10 +1135,13 @@ export default function App() {
       {/* Add Panel */}
       {showAddPanel && (
         <AddPanel
-          onClose={() => setShowAddPanel(false)}
+          onClose={() => { setShowAddPanel(false); setEditingEvento(null); }}
           onAddPost={addManualPost}
           onAddEvento={addEvento}
+          onEditEvento={editEvento}
+          onDeleteEvento={deleteEvento}
           brandForm={form}
+          editingEvento={editingEvento}
         />
       )}
     </div>
