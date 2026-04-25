@@ -892,6 +892,28 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
 }`;
   };
 
+  const wait = (ms) => new Promise(r => setTimeout(r, ms));
+
+  const callWithRetry = async (messages, maxTokens, label) => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        return await callClaude(messages, maxTokens);
+      } catch (e) {
+        const match = e.message.match(/try again in ([\d.]+)s/i);
+        if (match) {
+          const secs = Math.ceil(parseFloat(match[1])) + 2;
+          for (let s = secs; s > 0; s--) {
+            setLoadingMsg(`${label} — límite de API, reanudando en ${s}s…`);
+            await wait(1000);
+          }
+        } else {
+          throw e;
+        }
+      }
+    }
+    throw new Error("Límite de API persistente. Esperá un minuto e intentá de nuevo.");
+  };
+
   const handleGenerate = async () => {
     if (!form.negocio) { setError("Ingresá el nombre del negocio para continuar."); return; }
     setError(""); setLoading(true);
@@ -901,11 +923,14 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
       let resumen   = "";
 
       for (let n = 1; n <= 4; n++) {
-        setLoadingMsg(`Generando semana ${n} de 4…`);
-        const raw  = await callClaude([{ role: "user", content: buildWeekPrompt(n, n === 1) }], 4000);
+        const label = `Generando semana ${n} de 4…`;
+        setLoadingMsg(label);
+        const raw  = await callWithRetry([{ role: "user", content: buildWeekPrompt(n, n === 1) }], 4000, label);
         const data = JSON.parse(cleanJSON(raw));
         if (n === 1 && data.resumen) resumen = data.resumen;
         semanas.push({ numero: n, posts: data.posts || [] });
+        // Pausa entre semanas para no saturar el TPM
+        if (n < 4) await wait(3000);
       }
 
       setStrategy({ resumen, semanas });
@@ -914,7 +939,7 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
       setViewMode("list");
       setCurrentWeek(1);
     } catch (e) {
-      setError(`Error: ${e.message}. Intentá de nuevo.`);
+      setError(`Error: ${e.message}`);
     } finally {
       setLoading(false);
     }
