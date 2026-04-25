@@ -871,6 +871,7 @@ INSTRUCCIONES:
 - Copies completos y listos para publicar, con emojis naturales
 - Hashtags distintos en cada post (5-8 por post)
 - CTA específico y accionable por post
+- Hashtags: string plano separado por espacios, SIN paréntesis ni corchetes. Ejemplo: "#marketing #branding #tips"
 - promptImagen: prompt en inglés para generar imagen con IA (composición, estilo, mood, colores). Máx 2 oraciones.
 
 Devolvé SOLO JSON válido, sin markdown, sin texto extra:
@@ -897,21 +898,27 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   const callWithRetry = async (messages, maxTokens, label) => {
     for (let attempt = 0; attempt < 4; attempt++) {
       try {
-        return await callClaude(messages, maxTokens);
+        const raw  = await callClaude(messages, maxTokens);
+        const text = cleanJSON(raw);
+        JSON.parse(text); // validate — throws if malformed
+        return text;
       } catch (e) {
-        const match = e.message.match(/try again in ([\d.]+)s/i);
-        if (match) {
-          const secs = Math.ceil(parseFloat(match[1])) + 2;
+        const isRateLimit = e.message?.match(/try again in ([\d.]+)s/i);
+        if (isRateLimit) {
+          const secs = Math.ceil(parseFloat(isRateLimit[1])) + 2;
           for (let s = secs; s > 0; s--) {
             setLoadingMsg(`${label} — límite de API, reanudando en ${s}s…`);
             await wait(1000);
           }
+        } else if (attempt < 3) {
+          // JSON malformed → retry silently
+          setLoadingMsg(`${label} — reintentando…`);
+          await wait(1500);
         } else {
-          throw e;
+          throw new Error(`Respuesta inválida del modelo. Intentá de nuevo.`);
         }
       }
     }
-    throw new Error("Límite de API persistente. Esperá un minuto e intentá de nuevo.");
   };
 
   const handleGenerate = async () => {
@@ -925,11 +932,10 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
       for (let n = 1; n <= 4; n++) {
         const label = `Generando semana ${n} de 4…`;
         setLoadingMsg(label);
-        const raw  = await callWithRetry([{ role: "user", content: buildWeekPrompt(n, n === 1) }], 4000, label);
-        const data = JSON.parse(cleanJSON(raw));
+        const text = await callWithRetry([{ role: "user", content: buildWeekPrompt(n, n === 1) }], 4000, label);
+        const data = JSON.parse(text);
         if (n === 1 && data.resumen) resumen = data.resumen;
         semanas.push({ numero: n, posts: data.posts || [] });
-        // Pausa entre semanas para no saturar el TPM
         if (n < 4) await wait(3000);
       }
 
