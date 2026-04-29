@@ -412,10 +412,17 @@ const makeSlide = (post, tplKey = "dark", logoSrc = null) => {
   };
 };
 
-function DesignEditor({ post, onClose, initialLogo, onSave, initialDesignState }) {
+function DesignEditor({ post, onClose, initialLogo, onSave, initialDesignState, brandPalette }) {
   const [format,   setFormat]   = useState(initialDesignState?.format || "instagram");
   const [template, setTemplate] = useState(initialDesignState?.template || "dark");
-  const [slides, setSlides]     = useState(() => initialDesignState?.slides || [makeSlide(post, "dark", initialLogo)]);
+  const [slides, setSlides]     = useState(() => {
+    if (initialDesignState?.slides) return initialDesignState.slides;
+    const sl = makeSlide(post, "dark", initialLogo);
+    if (brandPalette?.length >= 1) sl.bgColor  = brandPalette[0];
+    if (brandPalette?.length >= 2) sl.textBoxes = sl.textBoxes.map(tb => ({ ...tb, color: brandPalette[1] }));
+    if (brandPalette?.length >= 3) sl.accColor  = brandPalette[2] || sl.accColor;
+    return [sl];
+  });
   const [curSlide, setCurSlide] = useState(0);
   const [isCarousel, setIsCarousel] = useState(false);
   const [selBoxId, setSelBoxId] = useState(null); // selected text box id
@@ -1384,7 +1391,7 @@ function buildTimeline(scenes, fps) {
   return slots;
 }
 
-function ReelEditor({ post, onClose, brandForm, strategy, onSaveReel }) {
+function ReelEditor({ post, onClose, brandForm, strategy, brandPalette, onSaveReel }) {
   const [step,       setStep]       = useState(1);
   const [platform,   setPlatform]   = useState("instagram");
   const [duration,   setDuration]   = useState(30);
@@ -1622,7 +1629,17 @@ function ReelEditor({ post, onClose, brandForm, strategy, onSaveReel }) {
         logo: brandForm.logoSrc?{src:brandForm.logoSrc,xF:0.06,yF:0.05,wF:0.18,ar:1}:null,
       }));
       if (brandForm.logoSrc) cacheImg(brandForm.logoSrc);
-      setScenes(newScenes); setSelScene(0); setSelElemId(null); setStep(2);
+      /* Apply brand palette to scenes if provided */
+      const paletteScenes = brandPalette?.length >= 2 ? newScenes.map((sc, i) => ({
+        ...sc,
+        bgColor:   brandPalette[i % brandPalette.length],
+        bgColor2:  brandPalette[(i + 1) % brandPalette.length],
+        textBoxes: sc.textBoxes.map(tb => ({
+          ...tb,
+          color: brandPalette.length >= 2 ? brandPalette[1] : tb.color,
+        })),
+      })) : newScenes;
+      setScenes(paletteScenes); setSelScene(0); setSelElemId(null); setStep(2);
     } catch(e) { setGenError("Error: "+e.message); }
     finally { setGenLoading(false); }
   };
@@ -1823,6 +1840,15 @@ function ReelEditor({ post, onClose, brandForm, strategy, onSaveReel }) {
                   <div style={{fontSize:11,color:C.accentLt,marginBottom:3}}>{post.red} · {post.pilar}</div>
                   <div style={{fontSize:11,color:C.muted}}>{post.copy?.slice(0,90)}{post.copy?.length>90?"…":""}</div>
                 </div>
+                {brandPalette?.length > 0 && (
+                  <div style={{background:C.surf2,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 12px",marginBottom:10,display:"flex",alignItems:"center",gap:10}}>
+                    <span style={{fontSize:10,color:C.muted,fontFamily:"Georgia,serif"}}>Paleta de marca</span>
+                    <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                      {brandPalette.map((c,i)=><div key={i} style={{width:18,height:18,borderRadius:"50%",background:c,border:`1px solid ${C.border}`,flexShrink:0}} title={c}/>)}
+                    </div>
+                    <span style={{fontSize:10,color:C.accentLt,fontFamily:"Georgia,serif"}}>→ se aplicará al generar</span>
+                  </div>
+                )}
                 {genError&&<div style={{background:"#2A0808",border:"1px solid #7B1F1F",borderRadius:7,padding:"9px 12px",color:"#FF9999",fontSize:12,marginBottom:10}}>{genError}</div>}
                 <button onClick={handleGenerate} disabled={genLoading}
                   style={{width:"100%",background:genLoading?C.surf3:C.accent,border:"none",borderRadius:8,color:C.text,fontSize:13,padding:"12px",cursor:genLoading?"not-allowed":"pointer",fontFamily:"Georgia,serif",display:"flex",alignItems:"center",justifyContent:"center",gap:10}}>
@@ -3435,6 +3461,7 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
           onClose={() => setDesigningPost(null)}
           initialLogo={form.logoSrc}
           initialDesignState={designingPost?.designState}
+          brandPalette={usePalette && palette.length > 0 ? palette : null}
           onSave={handleSaveDesign}
         />
       )}
@@ -3446,6 +3473,7 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
           onClose={() => setReelPost(null)}
           brandForm={form}
           strategy={strategy}
+          brandPalette={usePalette && palette.length > 0 ? palette : null}
           onSaveReel={handleSaveReel}
         />
       )}
