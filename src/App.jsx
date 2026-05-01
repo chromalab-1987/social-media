@@ -73,13 +73,24 @@ const getSemanaFromDate = (dateNum) => Math.min(4, Math.ceil(dateNum / 7));
 const cleanJSON = txt => txt.replace(/```json|```/g, "").trim();
 
 const callClaude = async (messages, maxTokens = 4000) => {
-  const res = await fetch("/api/chat", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, max_tokens: maxTokens }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Error de API");
+  let res;
+  try {
+    res = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messages, max_tokens: maxTokens }),
+    });
+  } catch (e) {
+    throw new Error("Sin conexion con el servidor. Verifica tu conexion a internet.");
+  }
+  let data;
+  try {
+    data = await res.json();
+  } catch (e) {
+    throw new Error(`El servidor devolvio una respuesta invalida (HTTP ${res.status}). Intenta de nuevo.`);
+  }
+  if (!res.ok) throw new Error(data.error || `Error de API (HTTP ${res.status})`);
+  if (!data.text) throw new Error("El modelo no devolvio contenido. Intenta de nuevo.");
   return data.text;
 };
 
