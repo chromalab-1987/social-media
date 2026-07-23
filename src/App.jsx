@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import Wizard from "./Wizard.jsx";
+import Wizard, { PERFIL_KEY } from "./Wizard.jsx";
 import Diagnostico from "./Diagnostico.jsx";
 import Sintesis from "./Sintesis.jsx";
+import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
 const C = {
@@ -2920,14 +2921,29 @@ export default function App() {
     const dias = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
     const dayHints = dias.slice(0, Math.min(7, total)).join(", ");
 
-    return `Sos un estratega experto en redes sociales. Generá posts REALES para la semana ${semanaNum} de 4 del mes de ${form.mes}.
+    /* Perfil estratégico: del estado, o de localStorage si hubo reload.
+       Solo se usa si corresponde al mismo negocio que el form actual. */
+    const perfilGuardado = (() => {
+      try { return JSON.parse(localStorage.getItem(PERFIL_KEY)); } catch { return null; }
+    })();
+    const perfil = [perfilEstrategico, perfilGuardado].find(p => p && p.negocio === form.negocio) || null;
+    const estrategico = buildContextoEstrategico(perfil, semanaNum);
 
-NEGOCIO: ${form.negocio}${form.industria ? ` — ${form.industria}` : ""}
+    const contextoBlock = estrategico
+      ? `${estrategico.contexto}
+TONO: ${form.tono}
+PILARES: ${form.pilares.join(", ") || "Educativo, Inspiracional, Promocional"}
+`
+      : `NEGOCIO: ${form.negocio}${form.industria ? ` — ${form.industria}` : ""}
 ${form.sitioWeb ? `Sitio web: ${form.sitioWeb}\n` : ""}AUDIENCIA: ${form.audiencia || "General"}
 OBJETIVO: ${form.objetivo || "Aumentar presencia y engagement"}
 TONO: ${form.tono}
 PILARES: ${form.pilares.join(", ") || "Educativo, Inspiracional, Promocional"}
-${usePalette && palette.length > 0 ? `PALETA: ${palette.join(", ")}\n` : ""}
+`;
+
+    return `Sos un estratega experto en redes sociales. Generá posts REALES para la semana ${semanaNum} de 4 del mes de ${form.mes}.
+
+${contextoBlock}${usePalette && palette.length > 0 ? `PALETA: ${palette.join(", ")}\n` : ""}
 REDES Y CANTIDAD:
 ${redesInfo}
 Total posts esta semana: ${total}
@@ -2939,7 +2955,7 @@ INSTRUCCIONES:
 - CTA específico y accionable por post
 - Hashtags: string plano separado por espacios, SIN paréntesis ni corchetes. Ejemplo: "#marketing #branding #tips"
 - promptImagen: prompt en inglés para generar imagen con IA (composición, estilo, mood, colores). Máx 2 oraciones.
-
+${estrategico ? estrategico.instrucciones + "\n" : ""}
 Devolvé SOLO JSON válido, sin markdown, sin texto extra:
 {${includeResumen ? `
   "resumen": "enfoque estratégico del mes completo en 2-3 oraciones",` : ""}
