@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import Wizard, { PERFIL_KEY } from "./Wizard.jsx";
 import Diagnostico from "./Diagnostico.jsx";
 import Sintesis from "./Sintesis.jsx";
+import PlanProduccion from "./PlanProduccion.jsx";
+import WhatsAppKit from "./WhatsAppKit.jsx";
 import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
@@ -3143,8 +3145,23 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
       onFinish={(perfilFinal, mapped) => {
         setPerfilEstrategico(perfilFinal);
         setForm((f) => ({ ...f, ...mapped }));
-        setScreen("form");
+        setScreen("plan");
       }}
+    />
+  );
+
+  if (screen === "plan" && perfilEstrategico) return (
+    <PlanProduccion
+      perfil={perfilEstrategico}
+      onAbrir={(mod) => setScreen(mod === "rrss" ? "form" : "whatsapp")}
+    />
+  );
+
+  if (screen === "whatsapp" && perfilEstrategico) return (
+    <WhatsAppKit
+      perfil={perfilEstrategico}
+      onBack={() => setScreen("plan")}
+      onSave={(perfilFinal) => setPerfilEstrategico(perfilFinal)}
     />
   );
 
@@ -3181,6 +3198,9 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
             <div style={{ display: "inline-block", background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accentLt, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100 }}>Generador IA</div>
             <button onClick={() => setScreen("wizard")} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: "Georgia,serif", textDecoration: "underline", padding: 0 }}>← Modo guiado</button>
+            {perfilEstrategico && (
+              <button onClick={() => setScreen("plan")} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: "Georgia,serif", textDecoration: "underline", padding: 0 }}>← Plan de producción</button>
+            )}
           </div>
           <h1 style={{ fontSize: "clamp(26px,5vw,46px)", fontWeight: 400, letterSpacing: "-0.02em", margin: "0 0 13px", lineHeight: 1.1 }}>Estrategia mensual<br />de redes sociales</h1>
           <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.75, maxWidth: 480, margin: 0 }}>Completá los datos de tu negocio y en segundos tendrás un plan de contenido completo, editable y listo para ejecutar.</p>
