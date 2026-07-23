@@ -1,5 +1,7 @@
 /* ─────────────────────────────────────────────────────────────────
-   /api/chat  —  Gemini Flash (primario) + Groq Llama (fallback)
+   /api/chat  —  Gemini 3.5 Flash (primario) + Groq Llama (fallback)
+   Migrado: modelo 3.5, JSON forzado, filtro de thinking parts,
+   fallback a llama-3.1-8b-instant (el 70b da rate limits).
    ───────────────────────────────────────────────────────────────── */
 
 /* Convierte mensajes estilo OpenAI → formato Gemini */
@@ -10,13 +12,13 @@ function toGeminiContents(messages) {
   }));
 }
 
-/* ── Provider: Gemini Flash ── */
-async function callGemini(messages, max_tokens) {
+/* ── Provider: Gemini 3.5 Flash ── */
+async function callGemini(messages, max_tokens, json) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new Error("GEMINI_API_KEY no configurada");
 
   const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -25,6 +27,7 @@ async function callGemini(messages, max_tokens) {
         generationConfig: {
           maxOutputTokens: max_tokens,
           temperature: 0.85,
+          ...(json ? { responseMimeType: "application/json" } : {}),
         },
       }),
     }
@@ -39,7 +42,13 @@ async function callGemini(messages, max_tokens) {
     throw err;
   }
 
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  /* Los modelos 3.x con thinking devuelven múltiples parts;
+     las de razonamiento traen thought: true y hay que filtrarlas. */
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const text = parts
+    .filter((p) => !p.thought)
+    .map((p) => p.text || "")
+    .join("");
   if (!text) throw new Error("Gemini: respuesta vacía");
   return text;
 }
@@ -56,7 +65,7 @@ async function callGroq(messages, max_tokens) {
       Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       max_tokens,
       messages,
     }),
@@ -86,7 +95,7 @@ function shouldFallback(err) {
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
 
-  const { messages, max_tokens = 4000 } = req.body;
+  const { messages, max_tokens = 4000, json = true } = req.body;
 
   if (!messages?.length) {
     return res.status(400).json({ error: "messages requerido" });
@@ -96,14 +105,13 @@ export default async function handler(req, res) {
 
   /* 1. Intentar Gemini */
   try {
-    const text = await callGemini(messages, max_tokens);
+    const text = await callGemini(messages, max_tokens, json);
     return res.status(200).json({ text, provider: "gemini" });
   } catch (err) {
     geminiError = err;
     console.warn(`[chat] Gemini falló (${err.status || "?"}: ${err.message}) — usando Groq`);
 
     if (!shouldFallback(err)) {
-      // Error de cliente (400, 401, etc.) — no tiene sentido hacer fallback
       return res.status(err.status || 500).json({
         error: `Gemini: ${err.message}`,
         provider: "gemini",
