@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import Wizard from "./Wizard.jsx";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
 const C = {
@@ -2641,7 +2642,7 @@ export default function App() {
   const [usePalette, setUsePalette]   = useState(false);
   const [palette, setPalette]         = useState(["#7B35D4", "#F2EDE4", "#0C0C0F"]);
   const [colorInput, setColorInput]   = useState("");
-  const [screen, setScreen]           = useState("form");
+  const [screen, setScreen]           = useState("wizard");
   const [strategy, setStrategy]       = useState(null);
   const [loading, setLoading]         = useState(false);
   const [loadingMsg, setLoadingMsg]   = useState("");
@@ -3097,6 +3098,16 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   );
 
   /* ══ FORM ══════════════════════════════════════════════════════ */
+  if (screen === "wizard") return (
+    <Wizard
+      onSkip={() => setScreen("form")}
+      onComplete={(perfil, mapped) => {
+        setForm((f) => ({ ...f, ...mapped }));
+        setScreen("form");
+      }}
+    />
+  );
+
   if (screen === "form") return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "Georgia,serif" }}>
       <style>{GLOBAL_CSS}</style>
@@ -3127,7 +3138,10 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
         )}
 
         <div style={{ marginBottom: 44 }}>
-          <div style={{ display: "inline-block", background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accentLt, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100, marginBottom: 16 }}>Generador IA</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "inline-block", background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accentLt, fontSize: 11, letterSpacing: "0.14em", textTransform: "uppercase", padding: "5px 14px", borderRadius: 100 }}>Generador IA</div>
+            <button onClick={() => setScreen("wizard")} style={{ background: "transparent", border: "none", color: C.muted, fontSize: 12, cursor: "pointer", fontFamily: "Georgia,serif", textDecoration: "underline", padding: 0 }}>← Modo guiado</button>
+          </div>
           <h1 style={{ fontSize: "clamp(26px,5vw,46px)", fontWeight: 400, letterSpacing: "-0.02em", margin: "0 0 13px", lineHeight: 1.1 }}>Estrategia mensual<br />de redes sociales</h1>
           <p style={{ fontSize: 15, color: C.muted, lineHeight: 1.75, maxWidth: 480, margin: 0 }}>Completá los datos de tu negocio y en segundos tendrás un plan de contenido completo, editable y listo para ejecutar.</p>
         </div>
