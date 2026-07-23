@@ -6,6 +6,7 @@ import PlanProduccion from "./PlanProduccion.jsx";
 import WhatsAppKit from "./WhatsAppKit.jsx";
 import EmailSecuencia from "./EmailSecuencia.jsx";
 import ArticulosSEO from "./ArticulosSEO.jsx";
+import PautaRRSS from "./PautaRRSS.jsx";
 import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
@@ -3177,6 +3178,14 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
 
   if (screen === "articulos" && perfilEstrategico) return (
     <ArticulosSEO
+      perfil={perfilEstrategico}
+      onBack={() => setScreen("plan")}
+      onSave={(perfilFinal) => setPerfilEstrategico(perfilFinal)}
+    />
+  );
+
+  if (screen === "pauta" && perfilEstrategico) return (
+    <PautaRRSS
       perfil={perfilEstrategico}
       onBack={() => setScreen("plan")}
       onSave={(perfilFinal) => setPerfilEstrategico(perfilFinal)}
