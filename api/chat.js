@@ -25,7 +25,10 @@ async function callGemini(messages, max_tokens, json) {
       body: JSON.stringify({
         contents: toGeminiContents(messages),
         generationConfig: {
-          maxOutputTokens: max_tokens,
+          /* Los modelos 3.x con thinking consumen maxOutputTokens en el
+             razonamiento: sin este piso, el JSON llega truncado (mismo
+             fix que en el Analizador). Groq mantiene el valor original. */
+          maxOutputTokens: Math.max(max_tokens, 16384),
           temperature: 0.85,
           ...(json ? { responseMimeType: "application/json" } : {}),
         },
