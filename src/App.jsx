@@ -4,6 +4,8 @@ import Diagnostico from "./Diagnostico.jsx";
 import Sintesis from "./Sintesis.jsx";
 import PlanProduccion from "./PlanProduccion.jsx";
 import WhatsAppKit from "./WhatsAppKit.jsx";
+import EmailSecuencia from "./EmailSecuencia.jsx";
+import ArticulosSEO from "./ArticulosSEO.jsx";
 import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
@@ -3153,12 +3155,28 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   if (screen === "plan" && perfilEstrategico) return (
     <PlanProduccion
       perfil={perfilEstrategico}
-      onAbrir={(mod) => setScreen(mod === "rrss" ? "form" : "whatsapp")}
+      onAbrir={(mod) => setScreen(mod === "rrss" ? "form" : mod)}
     />
   );
 
   if (screen === "whatsapp" && perfilEstrategico) return (
     <WhatsAppKit
+      perfil={perfilEstrategico}
+      onBack={() => setScreen("plan")}
+      onSave={(perfilFinal) => setPerfilEstrategico(perfilFinal)}
+    />
+  );
+
+  if (screen === "email" && perfilEstrategico) return (
+    <EmailSecuencia
+      perfil={perfilEstrategico}
+      onBack={() => setScreen("plan")}
+      onSave={(perfilFinal) => setPerfilEstrategico(perfilFinal)}
+    />
+  );
+
+  if (screen === "articulos" && perfilEstrategico) return (
+    <ArticulosSEO
       perfil={perfilEstrategico}
       onBack={() => setScreen("plan")}
       onSave={(perfilFinal) => setPerfilEstrategico(perfilFinal)}
