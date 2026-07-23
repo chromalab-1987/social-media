@@ -39,7 +39,7 @@ const PILAR_FORM = {
   "Entretenimiento": "Entretenimiento", "Diferencial": "Promocional",
   "Awareness segmento nuevo": "Inspiracional",
 };
-const pilaresFormDe = (embudoKey) => {
+export const pilaresFormDe = (embudoKey) => {
   const pilares = EMBUDOS[embudoKey]?.pilares || [];
   return [...new Set(pilares.map((p) => PILAR_FORM[p]).filter(Boolean))];
 };
