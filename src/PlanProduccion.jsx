@@ -33,10 +33,10 @@ const MODULOS = [
     activo: true },
   { key: "email", nombre: "Secuencias de email", icono: "✉",
     desc: "Correos con asunto y cuerpo + workflow de envío por días.",
-    activo: false },
+    activo: true },
   { key: "articulos", nombre: "Artículos / SEO", icono: "¶",
     desc: "Plan de artículos con keyword objetivo, título y estructura.",
-    activo: false },
+    activo: true },
 ];
 
 export default function PlanProduccion({ perfil, onAbrir }) {
@@ -71,7 +71,10 @@ export default function PlanProduccion({ perfil, onAbrir }) {
           {ordenados.map((mod) => {
             const prio = modulosPriorizados.has(mod.key);
             const canales = canalesDeModulo(mod.key);
-            const generado = mod.key === "whatsapp" && perfil?.whatsappKit;
+            const generado =
+              (mod.key === "whatsapp" && perfil?.whatsappKit) ||
+              (mod.key === "email" && perfil?.emailSecuencia) ||
+              (mod.key === "articulos" && perfil?.articulosPlan);
             return (
               <button key={mod.key}
                 onClick={() => mod.activo && onAbrir(mod.key)}
