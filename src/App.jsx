@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import Wizard, { mapPerfilToForm } from "./Wizard.jsx";
+import Wizard from "./Wizard.jsx";
 import Diagnostico from "./Diagnostico.jsx";
+import Sintesis from "./Sintesis.jsx";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
 const C = {
@@ -3113,11 +3114,18 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   if (screen === "diagnostico" && perfilEstrategico) return (
     <Diagnostico
       perfil={perfilEstrategico}
-      onFinish={(perfilFinal, extra) => {
+      onFinish={(perfilFinal) => {
         setPerfilEstrategico(perfilFinal);
-        const mapped = mapPerfilToForm(perfilFinal);
-        if (extra.objetivoExtra) mapped.objetivo = `${mapped.objetivo}. ${extra.objetivoExtra}`;
-        if (extra.pilares?.length) mapped.pilares = extra.pilares;
+        setScreen("sintesis");
+      }}
+    />
+  );
+
+  if (screen === "sintesis" && perfilEstrategico) return (
+    <Sintesis
+      perfil={perfilEstrategico}
+      onFinish={(perfilFinal, mapped) => {
+        setPerfilEstrategico(perfilFinal);
         setForm((f) => ({ ...f, ...mapped }));
         setScreen("form");
       }}
