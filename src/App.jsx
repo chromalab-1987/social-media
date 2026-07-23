@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import Wizard from "./Wizard.jsx";
+import Wizard, { mapPerfilToForm } from "./Wizard.jsx";
+import Diagnostico from "./Diagnostico.jsx";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
 const C = {
@@ -2643,6 +2644,7 @@ export default function App() {
   const [palette, setPalette]         = useState(["#7B35D4", "#F2EDE4", "#0C0C0F"]);
   const [colorInput, setColorInput]   = useState("");
   const [screen, setScreen]           = useState("wizard");
+  const [perfilEstrategico, setPerfilEstrategico] = useState(null);
   const [strategy, setStrategy]       = useState(null);
   const [loading, setLoading]         = useState(false);
   const [loadingMsg, setLoadingMsg]   = useState("");
@@ -3101,7 +3103,21 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   if (screen === "wizard") return (
     <Wizard
       onSkip={() => setScreen("form")}
-      onComplete={(perfil, mapped) => {
+      onComplete={(perfil) => {
+        setPerfilEstrategico(perfil);
+        setScreen("diagnostico");
+      }}
+    />
+  );
+
+  if (screen === "diagnostico" && perfilEstrategico) return (
+    <Diagnostico
+      perfil={perfilEstrategico}
+      onFinish={(perfilFinal, extra) => {
+        setPerfilEstrategico(perfilFinal);
+        const mapped = mapPerfilToForm(perfilFinal);
+        if (extra.objetivoExtra) mapped.objetivo = `${mapped.objetivo}. ${extra.objetivoExtra}`;
+        if (extra.pilares?.length) mapped.pilares = extra.pilares;
         setForm((f) => ({ ...f, ...mapped }));
         setScreen("form");
       }}
