@@ -313,11 +313,21 @@ export default function Wizard({ onComplete, onSkip }) {
   }
 
   if (step === 12) {
-    title = "Ponele un número y un plazo";
-    hint = "Ej: 30 ventas, 100 leads, 500 seguidores. Vago no sirve — medible sí.";
+    const META_POR_MKT = {
+      awareness:  { titulo: "¿Cuántos seguidores nuevos querés sumar?",       ph: "ej: 500",  hint: "Seguidores o alcance nuevo — el número que dice que más gente te conoce." },
+      leads:      { titulo: "¿Cuántos contactos querés conseguir?",           ph: "ej: 100",  hint: "Personas que dejan su contacto o piden info — tu lista de interesados." },
+      conversion: { titulo: "¿Cuántas ventas querés lograr?",                 ph: "ej: 30",   hint: "Ventas o pedidos concretos. Vago no sirve — medible sí." },
+      retencion:  { titulo: "¿Cuántos clientes querés que vuelvan a comprar?", ph: "ej: 20",  hint: "Recompras o clientes reactivados de tu base actual." },
+    };
+    const meta = META_POR_MKT[perfil.objetivoMkt.tipo] || {
+      titulo: "Ponele un número y un plazo", ph: "ej: 30",
+      hint: "Ej: 30 ventas, 100 leads, 500 seguidores. Vago no sirve — medible sí.",
+    };
+    title = meta.titulo;
+    hint = `${meta.hint} ¿Y en cuánto tiempo?`;
     body = (<>
       <input type="number" min="1" style={inputStyle} value={perfil.objetivoMkt.meta || ""}
-        placeholder="Cantidad objetivo (ej: 30)"
+        placeholder={meta.ph}
         onChange={(e) => set({ objetivoMkt: { ...perfil.objetivoMkt, meta: e.target.value } })} autoFocus />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
         {PLAZOS_META.map((p) => (
