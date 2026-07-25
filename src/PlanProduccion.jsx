@@ -42,7 +42,7 @@ const MODULOS = [
     activo: true },
 ];
 
-export default function PlanProduccion({ perfil, onAbrir }) {
+export default function PlanProduccion({ perfil, onAbrir, rrssListo = false }) {
   /* Canales que cada módulo cubre, cruzados con los priorizados de la síntesis */
   const priorizados = perfil?.sintesis?.canalesPriorizados || [];
   const modulosPriorizados = new Set(
@@ -75,6 +75,7 @@ export default function PlanProduccion({ perfil, onAbrir }) {
             const prio = modulosPriorizados.has(mod.key);
             const canales = canalesDeModulo(mod.key);
             const generado =
+              (mod.key === "rrss" && rrssListo) ||
               (mod.key === "whatsapp" && perfil?.whatsappKit) ||
               (mod.key === "email" && perfil?.emailSecuencia) ||
               (mod.key === "articulos" && perfil?.articulosPlan) ||
