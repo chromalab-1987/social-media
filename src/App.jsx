@@ -35,8 +35,8 @@ const NET_COLOR = {
 
 const TIPOS_POR_RED = {
   "Instagram":   ["Posts", "Historias", "Reels"],
-  "LinkedIn":    ["Posts", "Historias", "Artículos"],
-  "TikTok":      ["Videos", "Lives"],
+  "LinkedIn":    ["Posts"],
+  "TikTok":      ["Videos"],
   "Facebook":    ["Posts", "Historias", "Reels"],
   "X (Twitter)": ["Tweets", "Hilos"],
   "Pinterest":   ["Pines"],
@@ -256,21 +256,6 @@ function PostCard({ post, semanaNum, onEdit, onRegenerate, regeneratingId, onDes
             }} />
           </div>
         </div>
-        {post.promptImagen && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 10, color: "#9F5FF0", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 5, fontFamily: "Georgia,serif" }}>🎨 Prompt de imagen</div>
-            <textarea
-              value={post.promptImagen}
-              onChange={e => onEdit(semanaNum, post.id, "promptImagen", e.target.value)}
-              style={{
-                width: "100%", background: "#1A1A24", border: `1px solid #9F5FF040`,
-                borderRadius: 6, color: "#C8A8F0", fontSize: 12, lineHeight: 1.6,
-                padding: "8px 11px", resize: "vertical", minHeight: 48,
-                fontFamily: "Georgia,serif", boxSizing: "border-box", outline: "none",
-              }}
-            />
-          </div>
-        )}
         {/* ── Saved design thumbnail ── */}
         {post.designThumb && (
           <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 10, background: `${C.accent}11`, border: `1px solid ${C.accent}33`, borderRadius: 8, padding: "8px 12px" }}>
@@ -365,12 +350,21 @@ function ColorInput({ value, onChange }) {
     if (isValid(v)) onChange(toFull(v));
   };
   return (
-    <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 8 }}>
-      <input type="color" value={safe} onChange={e => { onChange(e.target.value); setHex(e.target.value); }}
-        style={{ width: 28, height: 24, border: "none", borderRadius: 4, cursor: "pointer", flexShrink: 0, padding: 1 }} />
-      <input type="text" value={hex} onChange={e => onHex(e.target.value)} maxLength={7} placeholder="#000000"
-        style={{ flex: 1, background: C.surf3, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, fontSize: 11, padding: "3px 7px", fontFamily: "monospace", outline: "none", boxSizing: "border-box",
-          borderColor: hex && !isValid(hex) ? "#E63946" : C.border }} />
+    <div style={{ marginBottom: 8 }}>
+      <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 5 }}>
+        <input type="color" value={safe} onChange={e => { onChange(e.target.value); setHex(e.target.value); }}
+          style={{ width: 28, height: 24, border: "none", borderRadius: 4, cursor: "pointer", flexShrink: 0, padding: 1 }} />
+        <input type="text" value={hex} onChange={e => onHex(e.target.value)} maxLength={7} placeholder="#000000"
+          style={{ flex: 1, background: C.surf3, border: `1px solid ${C.border}`, borderRadius: 5, color: C.text, fontSize: 11, padding: "3px 7px", fontFamily: "monospace", outline: "none", boxSizing: "border-box",
+            borderColor: hex && !isValid(hex) ? "#E63946" : C.border }} />
+      </div>
+      <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+        {PALETTE_PRESETS.map(c => (
+          <div key={c} onClick={() => { onChange(c); setHex(c); }} title={c}
+            style={{ width: 15, height: 15, borderRadius: "50%", background: c, cursor: "pointer",
+              border: `2px solid ${safe.toLowerCase() === c.toLowerCase() ? C.text : "transparent"}`, boxSizing: "border-box" }} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -2959,7 +2953,6 @@ INSTRUCCIONES:
 - Hashtags distintos en cada post (5-8 por post)
 - CTA específico y accionable por post
 - Hashtags: string plano separado por espacios, SIN paréntesis ni corchetes. Ejemplo: "#marketing #branding #tips"
-- promptImagen: prompt en inglés para generar imagen con IA (composición, estilo, mood, colores). Máx 2 oraciones.
 ${estrategico ? estrategico.instrucciones + "\n" : ""}
 Devolvé SOLO JSON válido, sin markdown, sin texto extra:
 {${includeResumen ? `
@@ -2973,8 +2966,7 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
       "copy": "texto completo del post listo para publicar",
       "hashtags": "#tag1 #tag2 #tag3 #tag4 #tag5",
       "cta": "llamada a la acción específica",
-      "dia": "Lunes",
-      "promptImagen": "prompt en inglés para IA image generator"
+      "dia": "Lunes"
     }
   ]
 }`;
@@ -3040,10 +3032,10 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   const handleRegenerate = async (semanaNum, post) => {
     setRegeneratingId(post.id);
     try {
-      const prompt = `Regenera este post para "${form.negocio}" (${form.industria || "negocio"}).\nRed: ${post.red} | Tipo: ${post.tipo} | Pilar: ${post.pilar} | Mes: ${form.mes} | Tono: ${form.tono}\n${usePalette ? `Paleta: ${palette.join(", ")}` : ""}\nDevuelve SOLO JSON sin markdown: {"copy":"...","hashtags":"...","cta":"...","dia":"...","promptImagen":"prompt en inglés para generar imagen con IA"}`;
+      const prompt = `Regenera este post para "${form.negocio}" (${form.industria || "negocio"}).\nRed: ${post.red} | Tipo: ${post.tipo} | Pilar: ${post.pilar} | Mes: ${form.mes} | Tono: ${form.tono}\n${usePalette ? `Paleta: ${palette.join(", ")}` : ""}\nDevuelve SOLO JSON sin markdown: {"copy":"...","hashtags":"...","cta":"...","dia":"..."}`;
       const raw  = await callClaude([{ role: "user", content: prompt }], 600);
       const data = JSON.parse(cleanJSON(raw));
-      ["copy", "hashtags", "cta", "dia", "promptImagen"].forEach(f => { if (data[f]) updatePost(semanaNum, post.id, f, data[f]); });
+      ["copy", "hashtags", "cta", "dia"].forEach(f => { if (data[f]) updatePost(semanaNum, post.id, f, data[f]); });
     } catch (e) { console.error(e); }
     finally { setRegeneratingId(null); }
   };
@@ -3156,7 +3148,15 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   if (screen === "plan" && perfilEstrategico) return (
     <PlanProduccion
       perfil={perfilEstrategico}
-      onAbrir={(mod) => setScreen(mod === "rrss" ? "form" : mod)}
+      rrssListo={!!strategy || hasSaved}
+      onAbrir={(mod) => {
+        if (mod === "rrss") {
+          if (strategy) { setScreen("result"); return; }
+          if (hasSaved) { restoreSaved(); return; }
+          setScreen("form"); return;
+        }
+        setScreen(mod);
+      }}
     />
   );
 
@@ -3244,32 +3244,6 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
             <input style={{ ...inputS, paddingLeft: 38 }} placeholder="Sitio web (opcional) — la IA lo analizará para personalizar el contenido" value={form.sitioWeb} onChange={e => setField("sitioWeb", e.target.value)} />
             <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", fontSize: 14, pointerEvents: "none" }}>🌐</span>
           </div>
-          {/* Logo upload */}
-          <div style={{ background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 18px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: 160 }}>
-              <div style={{ fontSize: 13, color: C.text, marginBottom: 3 }}>Logo de marca</div>
-              <div style={{ fontSize: 12, color: C.muted }}>PNG o SVG — se precargará en el editor de cada post</div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-              {form.logoSrc && (
-                <img src={form.logoSrc} style={{ height: 36, maxWidth: 100, objectFit: "contain", borderRadius: 5, background: "#fff1", border: `1px solid ${C.border}` }} alt="logo" />
-              )}
-              <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" id="logo-form-upload" style={{ display: "none" }}
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  const reader = new FileReader();
-                  reader.onload = ev => setField("logoSrc", ev.target.result);
-                  reader.readAsDataURL(file);
-                }} />
-              <label htmlFor="logo-form-upload" style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.surf3, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12, padding: "9px 14px", cursor: "pointer", fontFamily: "Georgia,serif", whiteSpace: "nowrap" }}>
-                {form.logoSrc ? "🔄 Cambiar" : "📁 Subir logo"}
-              </label>
-              {form.logoSrc && (
-                <button onClick={() => setField("logoSrc", null)} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 7, color: C.muted, fontSize: 12, padding: "9px 10px", cursor: "pointer", fontFamily: "Georgia,serif" }}>✕</button>
-              )}
-            </div>
-          </div>
           {form.sitioWeb && <div style={{ marginTop: 8, fontSize: 12, color: C.accentLt, display: "flex", alignItems: "center", gap: 6 }}><span>✦</span> La IA analizará este sitio para enfocar el contenido en tu propuesta de valor real</div>}
         </section>
         <div style={{ height: 1, background: C.border, margin: "4px 0 32px" }} />
@@ -3337,41 +3311,6 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
 
         <div style={{ height: 1, background: C.border, margin: "4px 0 32px" }} />
 
-        {/* 06 */}
-        <section style={{ marginBottom: 36 }}>
-          <label style={labelS}>06 — Identidad visual (opcional)</label>
-          <div style={{ background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 10, padding: "16px 20px" }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: usePalette ? 18 : 0 }}>
-              <div>
-                <div style={{ fontSize: 13, color: C.text }}>Paleta de colores personalizada</div>
-                <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>Los prompts de imagen incluirán tus colores exactos</div>
-              </div>
-              <Toggle on={usePalette} onToggle={() => setUsePalette(v => !v)} />
-            </div>
-            {usePalette && (
-              <div style={{ animation: "fadeIn .2s ease" }}>
-                {palette.length > 0 && (
-                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-                    {palette.map((c, i) => (
-                      <div key={i} onClick={() => setPalette(p => p.filter((_, j) => j !== i))} title="Click para quitar" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}>
-                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: c, border: `2px solid ${C.border}` }} />
-                        <span style={{ fontSize: 9, color: C.muted }}>{c}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Presets</div>
-                <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 12 }}>
-                  {PALETTE_PRESETS.map(c => (
-                    <div key={c} onClick={() => { if (palette.includes(c)) setPalette(p => p.filter(x => x !== c)); else if (palette.length < 6) setPalette(p => [...p, c]); }} style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer", border: `3px solid ${palette.includes(c) ? C.text : "transparent"}`, outline: palette.includes(c) ? `2px solid ${C.accent}` : "none", transition: "all .15s" }} />
-                  ))}
-                </div>
-                <input style={{ ...inputS, fontSize: 13 }} placeholder="Hex personalizado: #FF5733 → Enter" value={colorInput} onChange={e => setColorInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { let v = colorInput.trim(); if (!v.startsWith("#")) v = "#" + v; if (/^#[0-9A-Fa-f]{3}$/.test(v)) v = "#"+v[1]+v[1]+v[2]+v[2]+v[3]+v[3]; if (/^#[0-9A-Fa-f]{6}$/.test(v) && !palette.includes(v) && palette.length < 6) { setPalette(p => [...p, v]); setColorInput(""); } } }} />
-              </div>
-            )}
-          </div>
-        </section>
 
         {error && <div style={{ background: "#2A0808", border: "1px solid #7B1F1F", borderRadius: 8, padding: "13px 17px", color: "#FF9999", fontSize: 13, marginBottom: 16 }}>{error}</div>}
 
@@ -3438,6 +3377,9 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
             ) : null;
           })()}
           <button onClick={() => window.print()} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12, padding: "8px 15px", cursor: "pointer", fontFamily: "Georgia,serif" }}>⬇ PDF</button>
+          {perfilEstrategico && (
+            <button onClick={() => setScreen("plan")} style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12, padding: "8px 15px", cursor: "pointer", fontFamily: "Georgia,serif" }}>← Plan</button>
+          )}
           <button onClick={() => { setScreen("form"); setStrategy(null); setEventos([]); }} style={{ background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12, padding: "8px 15px", cursor: "pointer", fontFamily: "Georgia,serif" }}>← Nueva</button>
         </div>
       )}
