@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import Wizard, { PERFIL_KEY } from "./Wizard.jsx";
+import Wizard, { PERFIL_KEY, mapPerfilToForm } from "./Wizard.jsx";
 import Diagnostico from "./Diagnostico.jsx";
 import Sintesis from "./Sintesis.jsx";
 import PlanProduccion from "./PlanProduccion.jsx";
@@ -2644,8 +2644,18 @@ export default function App() {
   const [usePalette, setUsePalette]   = useState(false);
   const [palette, setPalette]         = useState(["#7B35D4", "#F2EDE4", "#0C0C0F"]);
   const [colorInput, setColorInput]   = useState("");
-  const [screen, setScreen]           = useState("wizard");
-  const [perfilEstrategico, setPerfilEstrategico] = useState(null);
+  const [perfilEstrategico, setPerfilEstrategico] = useState(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem(PERFIL_KEY));
+      return p?.negocio && p?.diagnostico ? p : null;
+    } catch { return null; }
+  });
+  const [screen, setScreen] = useState(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem(PERFIL_KEY));
+      return p?.negocio && p?.diagnostico ? "plan" : "wizard";
+    } catch { return "wizard"; }
+  });
   const [strategy, setStrategy]       = useState(null);
   const [loading, setLoading]         = useState(false);
   const [loadingMsg, setLoadingMsg]   = useState("");
@@ -2869,6 +2879,11 @@ export default function App() {
     }
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) setHasSaved(true);
+    /* Si arrancamos con un perfil restaurado, el form de RRSS
+       se pre-llena igual que al salir de la síntesis. */
+    if (perfilEstrategico) {
+      setForm(f => f.negocio ? f : { ...f, ...mapPerfilToForm(perfilEstrategico) });
+    }
   }, []);
 
   useEffect(() => {
@@ -3149,6 +3164,13 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
     <PlanProduccion
       perfil={perfilEstrategico}
       rrssListo={!!strategy || hasSaved}
+      onRehacer={() => {
+        if (!window.confirm("¿Empezar una estrategia nueva? El perfil actual y sus kits generados se van a descartar (la estrategia de RRSS guardada no se toca).")) return;
+        localStorage.removeItem(PERFIL_KEY);
+        localStorage.removeItem("chroma_wizard_v1");
+        setPerfilEstrategico(null);
+        setScreen("wizard");
+      }}
       onAbrir={(mod) => {
         if (mod === "rrss") {
           if (strategy) { setScreen("result"); return; }
