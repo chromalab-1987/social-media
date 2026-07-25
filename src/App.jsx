@@ -7,6 +7,9 @@ import WhatsAppKit from "./WhatsAppKit.jsx";
 import EmailSecuencia from "./EmailSecuencia.jsx";
 import ArticulosSEO from "./ArticulosSEO.jsx";
 import PautaRRSS from "./PautaRRSS.jsx";
+import Login from "./Login.jsx";
+import Dashboard from "./Dashboard.jsx";
+import { supabase, crearCliente, upsertPerfil, upsertEstrategia } from "./supabase.js";
 import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
@@ -2651,11 +2654,47 @@ export default function App() {
     } catch { return null; }
   });
   const [screen, setScreen] = useState(() => {
+    if (supabase) return "boot";
     try {
       const p = JSON.parse(localStorage.getItem(PERFIL_KEY));
       return p?.negocio && p?.diagnostico ? "plan" : "wizard";
     } catch { return "wizard"; }
   });
+  const [session, setSession]             = useState(null);
+  const [clienteActual, setClienteActual] = useState(null);
+
+  /* Resolución de sesión al arrancar + escucha de cambios de auth */
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setScreen(data.session ? "dashboard" : "login");
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_ev, s) => {
+      setSession(s);
+      if (!s) setScreen("login");
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  /* Sincronización del perfil a Supabase: cada cambio del perfil
+     completo se sube. Si el cliente aún no existe, se crea con el
+     nombre del negocio (es el momento post-diagnóstico del wizard). */
+  const clienteRef = useRef(null);
+  clienteRef.current = clienteActual;
+  useEffect(() => {
+    if (!supabase || !session || !perfilEstrategico?.negocio || !perfilEstrategico?.diagnostico) return;
+    (async () => {
+      try {
+        let c = clienteRef.current;
+        if (!c) {
+          c = await crearCliente(perfilEstrategico.negocio, perfilEstrategico.rubro || null);
+          setClienteActual(c);
+        }
+        await upsertPerfil(c.id, perfilEstrategico);
+      } catch (e) { console.warn("[sync] perfil:", e.message); }
+    })();
+  }, [perfilEstrategico, session]);
   const [strategy, setStrategy]       = useState(null);
   const [loading, setLoading]         = useState(false);
   const [loadingMsg, setLoadingMsg]   = useState("");
@@ -2892,7 +2931,15 @@ export default function App() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ strategy, eventos, form }));
       setSavedFlash(true);
       const t = setTimeout(() => setSavedFlash(false), 2000);
-      return () => clearTimeout(t);
+      /* Write-through a Supabase con debounce de 1.5s */
+      let t2 = null;
+      if (supabase && session && clienteActual) {
+        t2 = setTimeout(() => {
+          upsertEstrategia(clienteActual.id, form.mes, { strategy, eventos, form })
+            .catch(e => console.warn("[sync] estrategia:", e.message));
+        }, 1500);
+      }
+      return () => { clearTimeout(t); if (t2) clearTimeout(t2); };
     } catch (e) {}
   }, [strategy, eventos]);
 
@@ -3129,6 +3176,49 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   );
 
   /* ══ FORM ══════════════════════════════════════════════════════ */
+  if (screen === "boot") return (
+    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", color: C.muted, fontFamily: "Georgia,serif", fontSize: 14 }}>✦</div>
+  );
+
+  if (screen === "login") return (
+    <Login onLocal={() => setScreen(perfilEstrategico ? "plan" : "wizard")} />
+  );
+
+  if (screen === "dashboard" && session) return (
+    <Dashboard
+      session={session}
+      onNuevo={() => {
+        setClienteActual(null);
+        setPerfilEstrategico(null);
+        setStrategy(null); setEventos([]);
+        localStorage.removeItem(PERFIL_KEY);
+        localStorage.removeItem("chroma_wizard_v1");
+        localStorage.removeItem(STORAGE_KEY);
+        setScreen("wizard");
+      }}
+      onElegir={(cliente, datos) => {
+        setClienteActual(cliente);
+        if (datos.perfil) {
+          setPerfilEstrategico(datos.perfil);
+          localStorage.setItem(PERFIL_KEY, JSON.stringify(datos.perfil));
+          setForm(f => ({ ...f, ...mapPerfilToForm(datos.perfil) }));
+        } else {
+          setPerfilEstrategico(null);
+        }
+        if (datos.estrategia?.strategy) {
+          setStrategy(datos.estrategia.strategy);
+          setEventos(datos.estrategia.eventos || []);
+          setForm(f => ({ ...f, ...(datos.estrategia.form || {}) }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(datos.estrategia));
+          setHasSaved(true);
+        } else {
+          setStrategy(null); setEventos([]);
+        }
+        setScreen(datos.perfil ? "plan" : "wizard");
+      }}
+    />
+  );
+
   if (screen === "wizard") return (
     <Wizard
       onSkip={() => setScreen("form")}
@@ -3164,10 +3254,12 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
     <PlanProduccion
       perfil={perfilEstrategico}
       rrssListo={!!strategy || hasSaved}
+      onClientes={session ? () => setScreen("dashboard") : null}
       onRehacer={() => {
         if (!window.confirm("¿Empezar una estrategia nueva? El perfil actual y sus kits generados se van a descartar (la estrategia de RRSS guardada no se toca).")) return;
         localStorage.removeItem(PERFIL_KEY);
         localStorage.removeItem("chroma_wizard_v1");
+        setClienteActual(null);
         setPerfilEstrategico(null);
         setScreen("wizard");
       }}
