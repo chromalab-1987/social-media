@@ -42,7 +42,7 @@ const MODULOS = [
     activo: true },
 ];
 
-export default function PlanProduccion({ perfil, onAbrir, rrssListo = false }) {
+export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onRehacer }) {
   /* Canales que cada módulo cubre, cruzados con los priorizados de la síntesis */
   const priorizados = perfil?.sintesis?.canalesPriorizados || [];
   const modulosPriorizados = new Set(
@@ -60,8 +60,16 @@ export default function PlanProduccion({ perfil, onAbrir, rrssListo = false }) {
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT }}>
       <div style={{ maxWidth: 640, margin: "0 auto", padding: "48px 24px 80px" }}>
 
-        <div style={{ fontSize: 12, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>
-          Plan de producción · {perfil?.negocio}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontSize: 12, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            Plan de producción · {perfil?.negocio}
+          </div>
+          {onRehacer && (
+            <button onClick={onRehacer} style={{
+              background: "transparent", border: "none", color: C.muted,
+              fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline", padding: 0,
+            }}>↻ Nueva estrategia</button>
+          )}
         </div>
         <h1 style={{ fontSize: "clamp(22px,4vw,30px)", fontWeight: 400, letterSpacing: "-0.02em", margin: "0 0 8px", lineHeight: 1.2 }}>
           ¿Qué generamos?
