@@ -42,7 +42,7 @@ const MODULOS = [
     activo: true },
 ];
 
-export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onRehacer }) {
+export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onRehacer, onClientes }) {
   /* Canales que cada módulo cubre, cruzados con los priorizados de la síntesis */
   const priorizados = perfil?.sintesis?.canalesPriorizados || [];
   const modulosPriorizados = new Set(
@@ -64,12 +64,20 @@ export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onR
           <div style={{ fontSize: 12, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
             Plan de producción · {perfil?.negocio}
           </div>
-          {onRehacer && (
-            <button onClick={onRehacer} style={{
-              background: "transparent", border: "none", color: C.muted,
-              fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline", padding: 0,
-            }}>↻ Nueva estrategia</button>
-          )}
+          <div style={{ display: "flex", gap: 14 }}>
+            {onClientes && (
+              <button onClick={onClientes} style={{
+                background: "transparent", border: "none", color: C.muted,
+                fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline", padding: 0,
+              }}>☰ Clientes</button>
+            )}
+            {onRehacer && (
+              <button onClick={onRehacer} style={{
+                background: "transparent", border: "none", color: C.muted,
+                fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline", padding: 0,
+              }}>↻ Nueva estrategia</button>
+            )}
+          </div>
         </div>
         <h1 style={{ fontSize: "clamp(22px,4vw,30px)", fontWeight: 400, letterSpacing: "-0.02em", margin: "0 0 8px", lineHeight: 1.2 }}>
           ¿Qué generamos?
