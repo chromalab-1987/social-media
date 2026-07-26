@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   fetchClientes, fetchDatosCliente, crearCliente, upsertPerfil,
-  upsertEstrategia, borrarCliente, cerrarSesion,
+  upsertEstrategia, borrarCliente, cerrarSesion, limpiarDuplicados,
 } from "./supabase.js";
 import { PERFIL_KEY } from "./Wizard.jsx";
 import { planEfectivo, puedeCrearMarca, marcasRestantes } from "./planes.js";
@@ -74,6 +74,20 @@ export default function Dashboard({ session, suscripcion, onElegir, onNuevo, onM
     catch (e) { setError("No pudimos eliminar. " + e.message); }
   };
 
+  /* Detección de duplicados por nombre */
+  const hayDuplicados = clientes && (() => {
+    const nombres = clientes.map((c) => c.nombre.trim().toLowerCase());
+    return nombres.length !== new Set(nombres).size;
+  })();
+  const limpiar = async () => {
+    if (!window.confirm("Vamos a unificar los clientes repetidos, conservando el que tiene la estrategia. ¿Continuar?")) return;
+    try {
+      const { borrados } = await limpiarDuplicados();
+      await cargar();
+      setError(borrados ? "" : "");
+    } catch (e) { setError("No pudimos limpiar. " + e.message); }
+  };
+
   const estadoDe = (c) => {
     const tienePerfil = c.perfiles && (Array.isArray(c.perfiles) ? c.perfiles.length > 0 : true);
     const meses = (c.estrategias || []).length;
@@ -113,6 +127,16 @@ export default function Dashboard({ session, suscripcion, onElegir, onNuevo, onM
         {error && (
           <div style={{ background: C.surf2, border: `1px solid ${C.amber}66`, borderRadius: 10, padding: "12px 16px", fontSize: 13, marginBottom: 14 }}>
             {error}
+          </div>
+        )}
+
+        {hayDuplicados && (
+          <div style={{ background: C.surf2, border: `1px solid ${C.amber}66`, borderRadius: 10, padding: "12px 16px", fontSize: 13, marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <span>Hay clientes repetidos en tu cartera.</span>
+            <button onClick={limpiar} style={{
+              background: C.accent, border: "none", borderRadius: 100, color: C.text,
+              fontSize: 12, padding: "7px 16px", cursor: "pointer", fontFamily: FONT, flexShrink: 0,
+            }}>Unificar repetidos</button>
           </div>
         )}
 
