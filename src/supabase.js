@@ -73,10 +73,31 @@ export async function fetchSuscripcion() {
   if (!supabase) return null;
   const { data, error } = await supabase
     .from("suscripciones")
-    .select("plan, estado, origen, vence_el")
+    .select("plan, estado, origen, vence_el, mp_preapproval_id")
     .maybeSingle();
   if (error) { console.warn("[sub] fetch:", error.message); return null; }
   return data;
+}
+
+/* Inicia el checkout de Mercado Pago: devuelve el link de pago. */
+export async function crearSuscripcionMP(plan) {
+  const { data: u } = await supabase.auth.getUser();
+  const user = u?.user;
+  if (!user) throw new Error("Sin sesión");
+  const r = await fetch("/api/mp-crear-suscripcion", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan, userId: user.id, email: user.email }),
+  });
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.error || "No se pudo iniciar el pago");
+  return d.init_point;
+}
+
+/* Token de sesión (para llamadas autenticadas al backend admin). */
+export async function getAccessToken() {
+  const { data } = await supabase.auth.getSession();
+  return data?.session?.access_token || null;
 }
 
 /* ── Carga completa de un cliente (perfil + última estrategia) ── */
