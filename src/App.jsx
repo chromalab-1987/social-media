@@ -2695,17 +2695,27 @@ export default function App() {
      nombre del negocio (es el momento post-diagnóstico del wizard). */
   const clienteRef = useRef(null);
   clienteRef.current = clienteActual;
+  const creandoClienteRef = useRef(false);
   useEffect(() => {
     if (!supabase || !session || !perfilEstrategico?.negocio || !perfilEstrategico?.diagnostico) return;
     (async () => {
+      /* Candado: si ya hay una creación en curso, no arrancamos otra.
+         Evita la race condition que duplicaba el cliente. */
+      if (creandoClienteRef.current) return;
       try {
         let c = clienteRef.current;
         if (!c) {
+          creandoClienteRef.current = true;
           c = await crearCliente(perfilEstrategico.negocio, perfilEstrategico.rubro || null);
           setClienteActual(c);
+          clienteRef.current = c;
         }
         await upsertPerfil(c.id, perfilEstrategico);
-      } catch (e) { console.warn("[sync] perfil:", e.message); }
+      } catch (e) {
+        console.warn("[sync] perfil:", e.message);
+      } finally {
+        creandoClienteRef.current = false;
+      }
     })();
   }, [perfilEstrategico, session]);
   const [strategy, setStrategy]       = useState(null);
@@ -3446,7 +3456,7 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
                     {TIPOS_POR_RED[r].map(tipo => (
                       <div key={tipo} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                         <span style={{ fontSize: 12, color: C.muted, fontFamily: "Georgia,serif", minWidth: 66 }}>{tipo}</span>
-                        <Stepper value={contenido[r]?.[tipo] ?? 0} onChange={v => setTipoCantidad(r, tipo, v)} />
+                        <Stepper value={Math.min(5, contenido[r]?.[tipo] ?? 0)} onChange={v => setTipoCantidad(r, tipo, v)} max={5} />
                         <span style={{ fontSize: 11, color: C.muted, fontFamily: "Georgia,serif" }}>/sem</span>
                       </div>
                     ))}
