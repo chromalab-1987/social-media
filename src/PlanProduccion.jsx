@@ -42,7 +42,7 @@ const MODULOS = [
     activo: true },
 ];
 
-export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onRehacer, onClientes }) {
+export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onRehacer, onClientes, puedeProducir = true, onUpgrade }) {
   /* Canales que cada módulo cubre, cruzados con los priorizados de la síntesis */
   const priorizados = perfil?.sintesis?.canalesPriorizados || [];
   const modulosPriorizados = new Set(
@@ -86,6 +86,19 @@ export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onR
           Cada módulo usa tu estrategia aprobada. Los priorizados salen primero.
         </p>
 
+        {!puedeProducir && (
+          <button onClick={onUpgrade} style={{
+            display: "block", width: "100%", textAlign: "left", boxSizing: "border-box",
+            background: C.accentDim, border: `1px solid ${C.accent}`, borderRadius: 12,
+            padding: "16px 20px", marginBottom: 20, cursor: "pointer", fontFamily: FONT, color: C.text,
+          }}>
+            <div style={{ fontSize: 14, marginBottom: 4 }}>🔒 Tu estrategia está lista. Falta el último paso.</div>
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.55 }}>
+              El diagnóstico y la síntesis son gratis. Para generar el contenido de los 5 canales, elegí un plan. <span style={{ color: C.accentLt }}>Ver planes →</span>
+            </div>
+          </button>
+        )}
+
         <div style={{ display: "grid", gap: 12 }}>
           {ordenados.map((mod) => {
             const prio = modulosPriorizados.has(mod.key);
@@ -98,27 +111,31 @@ export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onR
               (mod.key === "pauta" && perfil?.pautaPlan);
             return (
               <button key={mod.key}
-                onClick={() => mod.activo && onAbrir(mod.key)}
+                onClick={() => {
+                  if (!mod.activo) return;
+                  if (!puedeProducir) { onUpgrade && onUpgrade(); return; }
+                  onAbrir(mod.key);
+                }}
                 disabled={!mod.activo}
                 style={{
                   display: "block", width: "100%", textAlign: "left", boxSizing: "border-box",
                   background: C.surf2,
-                  border: `1px solid ${prio ? C.accent + "66" : C.border}`,
+                  border: `1px solid ${!puedeProducir ? C.border : (prio ? C.accent + "66" : C.border)}`,
                   borderRadius: 12, padding: "18px 20px",
                   cursor: mod.activo ? "pointer" : "default",
-                  opacity: mod.activo ? 1 : 0.55, fontFamily: FONT, color: C.text,
+                  opacity: mod.activo ? (puedeProducir ? 1 : 0.6) : 0.55, fontFamily: FONT, color: C.text,
                 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6, gap: 10 }}>
                   <span style={{ fontSize: 15 }}>
-                    <span style={{ color: C.accentLt, marginRight: 8 }}>{mod.icono}</span>{mod.nombre}
+                    <span style={{ color: C.accentLt, marginRight: 8 }}>{!puedeProducir ? "🔒" : mod.icono}</span>{mod.nombre}
                   </span>
                   <span style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                    {prio && (
+                    {prio && puedeProducir && (
                       <span style={{ fontSize: 11, background: C.accentDim, border: `1px solid ${C.accent}40`, color: C.accentLt, padding: "3px 10px", borderRadius: 100 }}>
                         Priorizado{canales.length ? `: ${canales.join(", ")}` : ""}
                       </span>
                     )}
-                    {generado && (
+                    {generado && puedeProducir && (
                       <span style={{ fontSize: 11, border: `1px solid ${C.teal}66`, color: C.teal, padding: "3px 10px", borderRadius: 100 }}>✓ Generado</span>
                     )}
                     {!mod.activo && (
@@ -127,7 +144,7 @@ export default function PlanProduccion({ perfil, onAbrir, rrssListo = false, onR
                   </span>
                 </div>
                 <p style={{ fontSize: 13, color: C.muted, margin: 0, lineHeight: 1.55 }}>{mod.desc}</p>
-                {mod.activo && (
+                {mod.activo && puedeProducir && (
                   <p style={{ fontSize: 13, color: C.accentLt, margin: "10px 0 0" }}>
                     {generado ? "Ver / editar →" : mod.key === "rrss" ? "Abrir generador →" : "Generar →"}
                   </p>
