@@ -10,6 +10,7 @@ import {
   upsertEstrategia, borrarCliente, cerrarSesion,
 } from "./supabase.js";
 import { PERFIL_KEY } from "./Wizard.jsx";
+import { planEfectivo, puedeCrearMarca, marcasRestantes } from "./planes.js";
 
 const C = {
   bg: "#0C0C0F", surf2: "#1A1A24", surf3: "#22222E", border: "#2C2C3C",
@@ -19,7 +20,7 @@ const C = {
 const FONT = "Georgia,serif";
 const STRATEGY_KEY = "chroma_strategy_v1";
 
-export default function Dashboard({ session, onElegir, onNuevo }) {
+export default function Dashboard({ session, suscripcion, onElegir, onNuevo, onMuroMarcas, onVerPlanes }) {
   const [clientes, setClientes] = useState(null);
   const [error, setError] = useState("");
   const [abriendo, setAbriendo] = useState("");
@@ -91,10 +92,19 @@ export default function Dashboard({ session, onElegir, onNuevo }) {
           <div style={{ fontSize: 12, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
             Tus clientes
           </div>
-          <button onClick={cerrarSesion} style={{
-            background: "transparent", border: "none", color: C.muted,
-            fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline",
-          }}>Salir ({email})</button>
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <span style={{ fontSize: 12, color: C.accentLt }}>{planEfectivo(suscripcion).nombre}</span>
+            {onVerPlanes && (
+              <button onClick={onVerPlanes} style={{
+                background: "transparent", border: "none", color: C.muted,
+                fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline",
+              }}>Planes</button>
+            )}
+            <button onClick={cerrarSesion} style={{
+              background: "transparent", border: "none", color: C.muted,
+              fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline",
+            }}>Salir</button>
+          </div>
         </div>
         <h1 style={{ fontSize: "clamp(22px,4vw,30px)", fontWeight: 400, letterSpacing: "-0.02em", margin: "0 0 24px", lineHeight: 1.2 }}>
           ¿Con quién trabajamos hoy?
@@ -153,11 +163,27 @@ export default function Dashboard({ session, onElegir, onNuevo }) {
               );
             })}
 
-            <button onClick={onNuevo} style={{
-              background: "transparent", border: `1px dashed ${C.border}`, borderRadius: 12,
-              color: C.muted, fontSize: 14, padding: "16px 18px", cursor: "pointer",
-              fontFamily: FONT, textAlign: "center",
-            }}>+ Nuevo cliente</button>
+            {(() => {
+              const nActuales = clientes.length;
+              const puede = puedeCrearMarca(suscripcion, nActuales);
+              const restantes = marcasRestantes(suscripcion, nActuales);
+              const plan = planEfectivo(suscripcion);
+              return (
+                <button
+                  onClick={() => puede ? onNuevo() : onMuroMarcas(nActuales)}
+                  style={{
+                    background: "transparent",
+                    border: `1px dashed ${puede ? C.border : C.accent}66`,
+                    borderRadius: 12, color: puede ? C.muted : C.accentLt,
+                    fontSize: 14, padding: "16px 18px", cursor: "pointer",
+                    fontFamily: FONT, textAlign: "center",
+                  }}>
+                  {puede
+                    ? `+ Nuevo cliente${plan.marcas < 99 && restantes <= 2 ? ` (${restantes} ${restantes === 1 ? "lugar" : "lugares"})` : ""}`
+                    : `🔒 Llegaste al límite de ${plan.marcas} · Ampliar plan →`}
+                </button>
+              );
+            })()}
 
             {clientes.length === 0 && !perfilLocal && (
               <p style={{ fontSize: 13, color: C.muted, textAlign: "center", marginTop: 8, lineHeight: 1.6 }}>
