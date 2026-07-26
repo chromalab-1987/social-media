@@ -9,7 +9,9 @@ import ArticulosSEO from "./ArticulosSEO.jsx";
 import PautaRRSS from "./PautaRRSS.jsx";
 import Login from "./Login.jsx";
 import Dashboard from "./Dashboard.jsx";
-import { supabase, crearCliente, upsertPerfil, upsertEstrategia } from "./supabase.js";
+import Planes from "./Planes.jsx";
+import { puedeGenerarProduccion, planEfectivo } from "./planes.js";
+import { supabase, crearCliente, upsertPerfil, upsertEstrategia, fetchSuscripcion } from "./supabase.js";
 import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
@@ -2662,17 +2664,27 @@ export default function App() {
   });
   const [session, setSession]             = useState(null);
   const [clienteActual, setClienteActual] = useState(null);
+  const [suscripcion, setSuscripcion]     = useState(null);
+  const [muro, setMuro]                   = useState(null); // { motivo, marcasActuales } | null
+
+  /* Carga/recarga de la suscripción del usuario */
+  const recargarSuscripcion = useCallback(async () => {
+    if (!supabase) return;
+    setSuscripcion(await fetchSuscripcion());
+  }, []);
 
   /* Resolución de sesión al arrancar + escucha de cambios de auth */
   useEffect(() => {
     if (!supabase) return;
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
+      if (data.session) recargarSuscripcion();
       setScreen(data.session ? "dashboard" : "login");
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_ev, s) => {
       setSession(s);
-      if (!s) setScreen("login");
+      if (s) recargarSuscripcion();
+      if (!s) { setSuscripcion(null); setScreen("login"); }
     });
     return () => sub.subscription.unsubscribe();
   }, []);
@@ -3187,6 +3199,9 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
   if (screen === "dashboard" && session) return (
     <Dashboard
       session={session}
+      suscripcion={suscripcion}
+      onMuroMarcas={(n) => { setMuro({ motivo: "marcas", marcasActuales: n }); setScreen("planes"); }}
+      onVerPlanes={() => { setMuro({ motivo: "ver" }); setScreen("planes"); }}
       onNuevo={() => {
         setClienteActual(null);
         setPerfilEstrategico(null);
@@ -3250,10 +3265,25 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
     />
   );
 
+  if (screen === "planes") return (
+    <Planes
+      suscripcion={suscripcion}
+      motivo={muro?.motivo || "ver"}
+      marcasActuales={muro?.marcasActuales || 0}
+      onElegir={(planKey) => {
+        // Pieza 3 (Mercado Pago) conectará el checkout acá.
+        alert("El pago se habilita en el próximo paso. Plan elegido: " + planKey);
+      }}
+      onVolver={() => setScreen(session ? (perfilEstrategico ? "plan" : "dashboard") : "wizard")}
+    />
+  );
+
   if (screen === "plan" && perfilEstrategico) return (
     <PlanProduccion
       perfil={perfilEstrategico}
       rrssListo={!!strategy || hasSaved}
+      puedeProducir={!supabase || puedeGenerarProduccion(suscripcion)}
+      onUpgrade={() => { setMuro({ motivo: "produccion" }); setScreen("planes"); }}
       onClientes={session ? () => setScreen("dashboard") : null}
       onRehacer={() => {
         if (!window.confirm("¿Empezar una estrategia nueva? El perfil actual y sus kits generados se van a descartar (la estrategia de RRSS guardada no se toca).")) return;
@@ -3264,6 +3294,10 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
         setScreen("wizard");
       }}
       onAbrir={(mod) => {
+        // Muro 2: en free no se entra a producción (defensa además del candado visual)
+        if (supabase && !puedeGenerarProduccion(suscripcion)) {
+          setMuro({ motivo: "produccion" }); setScreen("planes"); return;
+        }
         if (mod === "rrss") {
           if (strategy) { setScreen("result"); return; }
           if (hasSaved) { restoreSaved(); return; }
