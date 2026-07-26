@@ -68,6 +68,17 @@ export async function upsertEstrategia(clienteId, mes, data) {
   if (error) throw error;
 }
 
+/* ── Suscripción del usuario actual ── */
+export async function fetchSuscripcion() {
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("suscripciones")
+    .select("plan, estado, origen, vence_el")
+    .maybeSingle();
+  if (error) { console.warn("[sub] fetch:", error.message); return null; }
+  return data;
+}
+
 /* ── Carga completa de un cliente (perfil + última estrategia) ── */
 export async function fetchDatosCliente(clienteId) {
   const [p, e] = await Promise.all([
