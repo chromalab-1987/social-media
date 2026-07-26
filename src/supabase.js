@@ -38,13 +38,56 @@ export async function crearCliente(nombre, rubro) {
   const { data: userData } = await supabase.auth.getUser();
   const user = userData?.user;
   if (!user) throw new Error("Sin sesión");
+  /* Si ya existe un cliente con ese nombre para este usuario, lo
+     reusamos (evita duplicados por doble llamada). */
+  const { data: existente } = await supabase
+    .from("clientes")
+    .select("id, nombre, rubro")
+    .eq("user_id", user.id)
+    .ilike("nombre", nombre.trim())
+    .maybeSingle();
+  if (existente) return existente;
   const { data, error } = await supabase
     .from("clientes")
-    .insert({ user_id: user.id, nombre, rubro: rubro || null })
+    .insert({ user_id: user.id, nombre: nombre.trim(), rubro: rubro || null })
     .select()
     .single();
   if (error) throw error;
   return data;
+}
+
+/* Limpia duplicados: para cada nombre repetido, conserva el que
+   tiene perfil (o el más reciente) y borra los vacíos. */
+export async function limpiarDuplicados() {
+  const { data: userData } = await supabase.auth.getUser();
+  const user = userData?.user;
+  if (!user) return { borrados: 0 };
+  const { data: clientes } = await supabase
+    .from("clientes")
+    .select("id, nombre, updated_at, perfiles(cliente_id)")
+    .eq("user_id", user.id);
+  if (!clientes) return { borrados: 0 };
+
+  const porNombre = {};
+  for (const c of clientes) {
+    const k = c.nombre.trim().toLowerCase();
+    (porNombre[k] ||= []).push(c);
+  }
+  const aBorrar = [];
+  for (const grupo of Object.values(porNombre)) {
+    if (grupo.length < 2) continue;
+    /* ordenar: primero los que tienen perfil, luego más recientes */
+    grupo.sort((a, b) => {
+      const pa = a.perfiles?.length ? 1 : 0, pb = b.perfiles?.length ? 1 : 0;
+      if (pa !== pb) return pb - pa;
+      return new Date(b.updated_at) - new Date(a.updated_at);
+    });
+    aBorrar.push(...grupo.slice(1).map((c) => c.id)); // conservar el primero
+  }
+  if (aBorrar.length) {
+    await supabase.from("clientes").delete().in("id", aBorrar);
+  }
+  return { borrados: aBorrar.length };
 }
 
 export async function borrarCliente(clienteId) {
