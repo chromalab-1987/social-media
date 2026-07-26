@@ -10,8 +10,9 @@ import PautaRRSS from "./PautaRRSS.jsx";
 import Login from "./Login.jsx";
 import Dashboard from "./Dashboard.jsx";
 import Planes from "./Planes.jsx";
+import AdminPanel from "./AdminPanel.jsx";
 import { puedeGenerarProduccion, planEfectivo } from "./planes.js";
-import { supabase, crearCliente, upsertPerfil, upsertEstrategia, fetchSuscripcion } from "./supabase.js";
+import { supabase, crearCliente, upsertPerfil, upsertEstrategia, fetchSuscripcion, crearSuscripcionMP } from "./supabase.js";
 import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
@@ -3265,14 +3266,23 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
     />
   );
 
-  if (screen === "planes") return (
-    <Planes
+  const ADMIN_EMAIL = "labid.chroma@gmail.com";
+  const quiereAdmin = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("admin") === "1";
+  if (quiereAdmin && session?.user?.email === ADMIN_EMAIL) return (
+    <AdminPanel onVolver={() => { window.history.replaceState({}, "", window.location.pathname); setScreen(session ? "dashboard" : "wizard"); }} />
+  );
+
+  if (screen === "planes") return (  <Planes
       suscripcion={suscripcion}
       motivo={muro?.motivo || "ver"}
       marcasActuales={muro?.marcasActuales || 0}
-      onElegir={(planKey) => {
-        // Pieza 3 (Mercado Pago) conectará el checkout acá.
-        alert("El pago se habilita en el próximo paso. Plan elegido: " + planKey);
+      onElegir={async (planKey) => {
+        try {
+          const url = await crearSuscripcionMP(planKey);
+          window.location.href = url;   // redirige al checkout de Mercado Pago
+        } catch (e) {
+          alert("No pudimos iniciar el pago: " + e.message);
+        }
       }}
       onVolver={() => setScreen(session ? (perfilEstrategico ? "plan" : "dashboard") : "wizard")}
     />
