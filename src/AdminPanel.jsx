@@ -92,6 +92,10 @@ export default function AdminPanel({ onVolver }) {
               fontSize: 13, padding: "12px 18px", cursor: cargando ? "default" : "pointer", fontFamily: FONT,
             }}>Dar de baja</button>
           </div>
+          <button onClick={() => llamar("liberar_cupo")} disabled={cargando || !email} style={{
+            background: "transparent", border: `1px solid ${C.teal}66`, borderRadius: 100, color: C.teal,
+            fontSize: 13, padding: "11px 18px", cursor: cargando ? "default" : "pointer", fontFamily: FONT, marginTop: 4,
+          }}>Liberar cupos del ciclo (por error del cliente)</button>
         </div>
       </div>
     </div>
