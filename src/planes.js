@@ -1,111 +1,127 @@
 /* ─────────────────────────────────────────────────────────────────
-   src/planes.js — Definición de planes y lógica de permisos
-   Los límites viven acá (no en la base) para ajustarlos sin migrar.
-   Módulo puro: sin React, sin llamadas. La fuente de verdad del
-   estado del usuario es la tabla `suscripciones` de Supabase; este
-   archivo solo interpreta ese estado.
+   src/Planes.jsx — Pantalla de planes / upgrade
+   Aparece al chocar un muro (crear marca de más, o generar en free)
+   o desde el menú. Muestra los 4 planes con precio USD. El botón de
+   pago queda inerte hasta la Pieza 3 (Mercado Pago).
    ───────────────────────────────────────────────────────────────── */
+import { PLANES, PLANES_PAGOS, planEfectivo, planSugerido } from "./planes.js";
 
-/* ═══ Los 4 planes + free ═══
-   precioUSD: se muestra en USD, se cobra en pesos al cambio del día.
-   marcas: tope de marcas activas simultáneas.
-   produccion: si permite generar los módulos de producción.        */
-export const PLANES = {
-  free: {
-    key: "free", nombre: "Gratis", precioUSD: 0,
-    marcas: 1, produccion: false,
-    resumen: "Diagnóstico y síntesis estratégica de 1 marca.",
-    incluye: [
-      "Entrevista guiada de 8 pasos",
-      "Diagnóstico estratégico",
-      "Síntesis: mensaje central, ángulos y canales",
-    ],
-    noIncluye: ["Generación de contenido (redes, WhatsApp, email, artículos, pauta)"],
+const C = {
+  bg: "#0C0C0F", surf2: "#1A1A24", surf3: "#22222E", border: "#2C2C3C",
+  text: "#F2EDE4", muted: "#6B6B80", accent: "#7B35D4", accentLt: "#9F5FF0",
+  accentDim: "#7B35D433", teal: "#2A9D8F",
+};
+const FONT = "Georgia,serif";
+
+/* Motivo del muro → encabezado contextual */
+const MOTIVOS = {
+  produccion: {
+    titulo: "Para generar el contenido, elegí un plan",
+    sub: "El diagnóstico y la síntesis son gratis. La producción — redes, WhatsApp, email, artículos y pauta — viene con los planes de pago.",
   },
-  empresa: {
-    key: "empresa", mpPlanId: "6a234288eaa841eab60766a4f61d8510", nombre: "Empresa", precioUSD: 30,
-    marcas: 1, produccion: true,
-    resumen: "Para tu propio negocio. Todo incluido, 1 marca.",
-    incluye: [
-      "Todo lo del plan Gratis",
-      "Los 5 módulos de producción completos",
-      "Calendario, WhatsApp, email, artículos y pauta",
-      "Guardado en la nube",
-    ],
+  marcas: {
+    titulo: "Llegaste al límite de marcas de tu plan",
+    sub: "Para sumar otra marca a tu cartera, pasá a un plan con más lugar.",
   },
-  estudio: {
-    key: "estudio", mpPlanId: "1c1dab80479740b0b5a43d34450a85aa", nombre: "Estudio", precioUSD: 55,
-    marcas: 3, produccion: true,
-    resumen: "Para freelancers y CM con cartera chica. Hasta 3 marcas.",
-    incluye: [
-      "Todo lo del plan Empresa",
-      "Hasta 3 marcas en paralelo",
-      "Panel multi-cliente",
-    ],
+  cupo: {
+    titulo: "Usaste todos los clientes de tu ciclo",
+    sub: "Tu plan te deja llevar a producción una cantidad de clientes por ciclo. El cupo se renueva en tu próxima fecha de facturación. Si te pasó por un error, escribinos a support@chromalab.com.ar y lo resolvemos. Si necesitás más clientes, podés pasar a un plan mayor.",
   },
-  agencia: {
-    key: "agencia", mpPlanId: "723945258ef9423e85f0a5b2d183aeff", nombre: "Agencia", precioUSD: 90,
-    marcas: 5, produccion: true,
-    resumen: "Para agencias establecidas. Hasta 5 marcas.",
-    incluye: [
-      "Todo lo del plan Estudio",
-      "Hasta 5 marcas en paralelo",
-    ],
-  },
-  agencia_pro: {
-    key: "agencia_pro", mpPlanId: "22eb127748784d188216dbdb080492e0", nombre: "Agencia Pro", precioUSD: 150,
-    marcas: 10, produccion: true,
-    resumen: "Para agencias con volumen. Hasta 10 marcas.",
-    incluye: [
-      "Todo lo del plan Agencia",
-      "Hasta 10 marcas en paralelo",
-    ],
+  ver: {
+    titulo: "Planes de Chroma Estrategia",
+    sub: "Precios en dólares. Se cobran en pesos al cambio del día.",
   },
 };
 
-/* Orden para mostrar en la pantalla de planes y comparar niveles. */
-export const ORDEN_PLANES = ["free", "empresa", "estudio", "agencia", "agencia_pro"];
+export default function Planes({ suscripcion, motivo = "ver", marcasActuales = 0, onElegir, onVolver }) {
+  const actual = planEfectivo(suscripcion);
+  const sugerido = (motivo === "produccion" || motivo === "marcas" || motivo === "cupo")
+    ? planSugerido(suscripcion, motivo === "cupo" ? "marcas" : motivo, marcasActuales)
+    : null;
+  const enc = MOTIVOS[motivo] || MOTIVOS.ver;
 
-/* Los planes de pago, para la grilla de precios (sin free). */
-export const PLANES_PAGOS = ["empresa", "estudio", "agencia", "agencia_pro"];
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: FONT }}>
+      <div style={{ maxWidth: 940, margin: "0 auto", padding: "44px 24px 80px" }}>
 
-/* ═══ Interpretación del estado de suscripción ═══
-   Recibe la fila de `suscripciones` (o null) y devuelve el plan
-   efectivo: si está vencida o no existe, cae a free.               */
-export function planEfectivo(suscripcion) {
-  if (!suscripcion) return PLANES.free;
-  const { plan, estado, vence_el } = suscripcion;
-  const vigente =
-    estado === "activa" &&
-    (!vence_el || new Date(vence_el) > new Date());
-  if (!vigente) return PLANES.free;
-  return PLANES[plan] || PLANES.free;
-}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 12, color: C.muted, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            Planes
+          </div>
+          {onVolver && (
+            <button onClick={onVolver} style={{
+              background: "transparent", border: "none", color: C.muted,
+              fontSize: 12, cursor: "pointer", fontFamily: FONT, textDecoration: "underline",
+            }}>← Volver</button>
+          )}
+        </div>
 
-/* ¿Puede generar producción (los 5 módulos)? */
-export function puedeGenerarProduccion(suscripcion) {
-  return planEfectivo(suscripcion).produccion === true;
-}
+        <h1 style={{ fontSize: "clamp(22px,4vw,32px)", fontWeight: 400, letterSpacing: "-0.02em", margin: "0 0 10px", lineHeight: 1.2 }}>
+          {enc.titulo}
+        </h1>
+        <p style={{ fontSize: 14, color: C.muted, margin: "0 0 8px", maxWidth: "60ch", lineHeight: 1.6 }}>{enc.sub}</p>
+        <p style={{ fontSize: 12, color: C.muted, margin: "0 0 32px" }}>
+          Tu plan actual: <span style={{ color: C.accentLt }}>{actual.nombre}</span>
+        </p>
 
-/* ¿Puede crear una marca más, dado cuántas tiene hoy? */
-export function puedeCrearMarca(suscripcion, marcasActuales) {
-  return marcasActuales < planEfectivo(suscripcion).marcas;
-}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(210px,1fr))", gap: 16 }}>
+          {PLANES_PAGOS.map((key) => {
+            const p = PLANES[key];
+            const esActual = actual.key === key;
+            const esSugerido = sugerido?.key === key;
+            return (
+              <div key={key} style={{
+                background: C.surf2,
+                border: `1px solid ${esSugerido ? C.accent : C.border}`,
+                borderRadius: 16, padding: "22px 20px",
+                display: "flex", flexDirection: "column",
+                position: "relative",
+                boxShadow: esSugerido ? `0 0 0 1px ${C.accent}` : "none",
+              }}>
+                {esSugerido && (
+                  <div style={{
+                    position: "absolute", top: -10, left: 20,
+                    background: C.accent, color: C.text, fontSize: 11,
+                    padding: "3px 12px", borderRadius: 100,
+                  }}>Recomendado</div>
+                )}
+                <div style={{ fontSize: 17, marginBottom: 4 }}>{p.nombre}</div>
+                <div style={{ marginBottom: 4 }}>
+                  <span style={{ fontSize: 30, color: C.text }}>US${p.precioUSD}</span>
+                  <span style={{ fontSize: 13, color: C.muted }}> /mes</span>
+                </div>
+                <div style={{ fontSize: 12, color: C.muted, marginBottom: 16, lineHeight: 1.5, minHeight: 34 }}>
+                  {p.marcas} {p.marcas === 1 ? "marca" : "marcas"}
+                </div>
+                <ul style={{ listStyle: "none", padding: 0, margin: "0 0 20px", flex: 1 }}>
+                  {p.incluye.map((it, i) => (
+                    <li key={i} style={{ fontSize: 12.5, color: C.text, marginBottom: 7, lineHeight: 1.5, display: "flex", gap: 7 }}>
+                      <span style={{ color: C.teal, flexShrink: 0 }}>✓</span>{it}
+                    </li>
+                  ))}
+                </ul>
+                <button
+                  onClick={() => !esActual && onElegir(key)}
+                  disabled={esActual}
+                  style={{
+                    background: esActual ? C.surf3 : (esSugerido ? C.accent : "transparent"),
+                    border: esActual ? "none" : `1px solid ${esSugerido ? C.accent : C.border}`,
+                    borderRadius: 100, color: esActual ? C.muted : C.text,
+                    fontSize: 13, padding: "11px 18px",
+                    cursor: esActual ? "default" : "pointer", fontFamily: FONT,
+                  }}>
+                  {esActual ? "Tu plan actual" : "Elegir plan →"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
 
-/* Cuántas marcas más puede crear (para mostrar en la UI). */
-export function marcasRestantes(suscripcion, marcasActuales) {
-  return Math.max(0, planEfectivo(suscripcion).marcas - marcasActuales);
-}
-
-/* Sugerencia de upgrade: el siguiente plan que resuelve la necesidad.
-   motivo = "produccion" | "marcas".                                */
-export function planSugerido(suscripcion, motivo, marcasActuales = 0) {
-  const actual = planEfectivo(suscripcion).key;
-  const idx = ORDEN_PLANES.indexOf(actual);
-  for (let i = idx + 1; i < ORDEN_PLANES.length; i++) {
-    const p = PLANES[ORDEN_PLANES[i]];
-    if (motivo === "produccion" && p.produccion) return p;
-    if (motivo === "marcas" && p.marcas > marcasActuales) return p;
-  }
-  return PLANES.agencia_pro; // tope
+        <p style={{ fontSize: 12, color: C.muted, margin: "28px 0 0", lineHeight: 1.6, maxWidth: "62ch" }}>
+          El plan Gratis te deja usar el diagnóstico y la síntesis estratégica de 1 marca, sin generar contenido.
+          ¿Necesitás cobrar desde el exterior o tenés dudas? Escribinos y lo resolvemos.
+        </p>
+      </div>
+    </div>
+  );
 }
