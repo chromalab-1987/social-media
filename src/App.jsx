@@ -12,7 +12,7 @@ import Dashboard from "./Dashboard.jsx";
 import Planes from "./Planes.jsx";
 import AdminPanel from "./AdminPanel.jsx";
 import { puedeGenerarProduccion, planEfectivo } from "./planes.js";
-import { supabase, crearCliente, upsertPerfil, upsertEstrategia, fetchSuscripcion, crearSuscripcionMP } from "./supabase.js";
+import { supabase, crearCliente, upsertPerfil, upsertEstrategia, fetchSuscripcion, crearSuscripcionMP, activarProduccion } from "./supabase.js";
 import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
@@ -3313,10 +3313,19 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
         setPerfilEstrategico(null);
         setScreen("wizard");
       }}
-      onAbrir={(mod) => {
-        // Muro 2: en free no se entra a producción (defensa además del candado visual)
+      onAbrir={async (mod) => {
+        // Muro 2: en free no se entra a producción
         if (supabase && !puedeGenerarProduccion(suscripcion)) {
           setMuro({ motivo: "produccion" }); setScreen("planes"); return;
+        }
+        // Cupo por ciclo: activar el cliente (o confirmar que ya está activo).
+        // Se hace del lado servidor; si el cupo está agotado, muro.
+        if (supabase && clienteActual) {
+          const r = await activarProduccion(clienteActual.id, clienteActual.nombre);
+          if (r.bloqueado) {
+            setMuro({ motivo: r.motivo === "produccion" ? "produccion" : "cupo" });
+            setScreen("planes"); return;
+          }
         }
         if (mod === "rrss") {
           if (strategy) { setScreen("result"); return; }
