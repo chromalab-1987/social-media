@@ -143,6 +143,29 @@ export async function getAccessToken() {
   return data?.session?.access_token || null;
 }
 
+/* Intenta activar la producción de un cliente en el ciclo actual.
+   Devuelve { ok } si se puede generar, o { bloqueado, motivo } si no.
+   'motivo' = "cupo" (llegó al límite del ciclo) | "produccion" (plan free). */
+export async function activarProduccion(clienteId, clienteNombre) {
+  if (!supabase) return { ok: true }; // modo local: sin límites
+  const { data: u } = await supabase.auth.getUser();
+  const user = u?.user;
+  if (!user) return { ok: true };
+  try {
+    const r = await fetch("/api/activar-produccion", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, clienteId, clienteNombre }),
+    });
+    const d = await r.json();
+    if (r.ok) return { ok: true, ...d };
+    return { bloqueado: true, motivo: d.motivo || "cupo", ...d };
+  } catch (e) {
+    console.warn("[activar] error:", e.message);
+    return { ok: true }; // ante fallo de red, no bloqueamos (permisivo)
+  }
+}
+
 /* ── Carga completa de un cliente (perfil + última estrategia) ── */
 export async function fetchDatosCliente(clienteId) {
   const [p, e] = await Promise.all([
