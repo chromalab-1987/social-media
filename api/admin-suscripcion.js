@@ -55,6 +55,24 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, msg: `${email} → free` });
     }
 
+    if (accion === "liberar_cupo") {
+      /* Borra las activaciones del ciclo actual → le devuelve los cupos.
+         Para el caso legítimo de un cliente que se equivocó. */
+      const { data: sub } = await admin.from("suscripciones")
+        .select("vence_el").eq("user_id", target.id).maybeSingle();
+      let ciclo;
+      if (sub?.vence_el) {
+        const ini = new Date(sub.vence_el); ini.setMonth(ini.getMonth() - 1);
+        ciclo = ini.toISOString().slice(0, 10);
+      } else {
+        const h = new Date();
+        ciclo = `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, "0")}-01`;
+      }
+      const { data: borradas } = await admin.from("activaciones")
+        .delete().eq("user_id", target.id).eq("ciclo", ciclo).select("id");
+      return res.status(200).json({ ok: true, msg: `${email} → ${borradas?.length || 0} cupo(s) liberado(s) del ciclo actual` });
+    }
+
     return res.status(400).json({ error: "acción inválida" });
   } catch (e) {
     console.error("[admin] excepción:", e.message);
