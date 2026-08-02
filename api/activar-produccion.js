@@ -5,8 +5,6 @@
    desde el navegador). Idempotente por (user, cliente, ciclo).
    Variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE.
 
-   NOTA: incluye un modo diagnóstico temporal (?debug=1) para
-   detectar problemas de configuración. Sacarlo una vez resuelto.
    ───────────────────────────────────────────────────────────────── */
 import { createClient } from "@supabase/supabase-js";
 
@@ -48,7 +46,7 @@ export default async function handler(req, res) {
     const { data: sub, error: subError } = await supabase
       .from("suscripciones").select("plan, estado, vence_el").eq("user_id", userId).maybeSingle();
 
-    const debug = true; // temporal: siempre activo hasta resolver el diagnóstico
+    const debug = false;
     const plan = planEfectivo(sub);
     const limite = LIMITES[plan] ?? 0;
     const ciclo = inicioCiclo(sub);
