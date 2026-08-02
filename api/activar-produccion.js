@@ -48,7 +48,7 @@ export default async function handler(req, res) {
     const { data: sub, error: subError } = await supabase
       .from("suscripciones").select("plan, estado, vence_el").eq("user_id", userId).maybeSingle();
 
-    const debug = req.query?.debug === "1";
+    const debug = true; // temporal: siempre activo hasta resolver el diagnóstico
     const plan = planEfectivo(sub);
     const limite = LIMITES[plan] ?? 0;
     const ciclo = inicioCiclo(sub);
