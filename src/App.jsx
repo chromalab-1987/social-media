@@ -9,10 +9,11 @@ import ArticulosSEO from "./ArticulosSEO.jsx";
 import PautaRRSS from "./PautaRRSS.jsx";
 import Login from "./Login.jsx";
 import Dashboard from "./Dashboard.jsx";
+import MesesPlan from "./MesesPlan.jsx";
 import Planes from "./Planes.jsx";
 import AdminPanel from "./AdminPanel.jsx";
 import { puedeGenerarProduccion, planEfectivo } from "./planes.js";
-import { supabase, crearCliente, upsertPerfil, upsertEstrategia, fetchSuscripcion, crearSuscripcionMP, activarProduccion } from "./supabase.js";
+import { supabase, crearCliente, upsertPerfil, upsertEstrategia, fetchSuscripcion, crearSuscripcionMP, activarProduccion, fetchEstrategiaPorMes, fetchMesesEstrategia } from "./supabase.js";
 import { buildContextoEstrategico } from "./promptEstrategico.js";
 
 /* ─── THEME ─────────────────────────────────────────────────────── */
@@ -2667,6 +2668,8 @@ export default function App() {
   const [clienteActual, setClienteActual] = useState(null);
   const [suscripcion, setSuscripcion]     = useState(null);
   const [muro, setMuro]                   = useState(null); // { motivo, marcasActuales } | null
+  const [soloLectura, setSoloLectura]     = useState(false);
+  const [mesesUsados, setMesesUsados]     = useState([]);
 
   /* Carga/recarga de la suscripción del usuario */
   const recargarSuscripcion = useCallback(async () => {
@@ -2950,6 +2953,7 @@ export default function App() {
 
   useEffect(() => {
     if (!strategy) return;
+    if (soloLectura) return; // no escribir sobre un mes ya cerrado
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ strategy, eventos, form }));
       setSavedFlash(true);
@@ -3328,9 +3332,7 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
           }
         }
         if (mod === "rrss") {
-          if (strategy) { setScreen("result"); return; }
-          if (hasSaved) { restoreSaved(); return; }
-          setScreen("form"); return;
+          setScreen("meses"); return;
         }
         setScreen(mod);
       }}
@@ -3366,6 +3368,40 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
       perfil={perfilEstrategico}
       onBack={() => setScreen("plan")}
       onSave={(perfilFinal) => setPerfilEstrategico(perfilFinal)}
+    />
+  );
+
+  if (screen === "meses" && clienteActual) return (
+    <MesesPlan
+      cliente={clienteActual}
+      onVolver={() => setScreen("plan")}
+      onAbrirMes={async (mes, esPasado) => {
+        try {
+          const datos = await fetchEstrategiaPorMes(clienteActual.id, mes);
+          if (datos?.strategy) {
+            setStrategy(datos.strategy);
+            setEventos(datos.eventos || []);
+            setForm((f) => ({ ...f, ...(datos.form || {}) }));
+          }
+          setSoloLectura(!!esPasado);
+          setScreen("result");
+        } catch (e) {
+          alert("No pudimos abrir ese mes: " + e.message);
+        }
+      }}
+      onNuevoMes={async () => {
+        let usados = [];
+        try {
+          const existentes = await fetchMesesEstrategia(clienteActual.id);
+          usados = existentes.map((m) => m.mes);
+          setMesesUsados(usados);
+        } catch (e) { setMesesUsados([]); }
+        setStrategy(null); setEventos([]);
+        setSoloLectura(false);
+        const libre = MONTHS.find((o) => !usados.includes(o.value));
+        if (libre) setField("mes", libre.value);
+        setScreen("form");
+      }}
     />
   );
 
@@ -3439,7 +3475,11 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
           <label style={labelS}>03 — Mes y tono de voz</label>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <select style={{ ...inputS, appearance: "none", cursor: "pointer" }} value={form.mes} onChange={e => setField("mes", e.target.value)}>
-              {MONTHS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              {MONTHS.map(o => (
+                <option key={o.value} value={o.value} disabled={mesesUsados.includes(o.value)}>
+                  {o.label}{mesesUsados.includes(o.value) ? " · ya planificado" : ""}
+                </option>
+              ))}
             </select>
             <select style={{ ...inputS, appearance: "none", cursor: "pointer" }} value={form.tono} onChange={e => setField("tono", e.target.value)}>
               {TONOS.map(t => <option key={t} value={t}>{t}</option>)}
@@ -3518,6 +3558,15 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "Georgia,serif" }}>
       <style>{GLOBAL_CSS}</style>
 
+      {soloLectura && (
+        <div style={{
+          background: C.surf2, borderBottom: `1px solid ${C.amber}55`,
+          padding: "10px 20px", textAlign: "center", fontSize: 13, color: C.amber,
+        }}>
+          🔒 Este mes ya pasó — se muestra como archivo de solo lectura. Para planificar de nuevo, volvé a Meses y creá uno nuevo.
+        </div>
+      )}
+
       {headerEl(
         <div className="result-header-btns no-print" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           {/* View toggle */}
@@ -3560,6 +3609,8 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
           <button onClick={() => { setScreen("form"); setStrategy(null); setEventos([]); }} style={{ background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 12, padding: "8px 15px", cursor: "pointer", fontFamily: "Georgia,serif" }}>← Nueva</button>
         </div>
       )}
+
+      <div style={{ pointerEvents: soloLectura ? "none" : "auto", opacity: soloLectura ? 0.82 : 1 }}>
 
       <div style={{ maxWidth: viewMode === "list" ? 860 : "100%", margin: "0 auto", padding: "24px 12px 80px" }}>
 
@@ -3670,6 +3721,8 @@ Devolvé SOLO JSON válido, sin markdown, sin texto extra:
           <button onClick={() => window.print()} style={{ background: C.accent, border: "none", borderRadius: 10, color: C.text, fontSize: 14, padding: "14px 30px", cursor: "pointer", fontFamily: "Georgia,serif" }}>⬇ Exportar PDF</button>
           <button onClick={() => { setScreen("form"); setStrategy(null); setEventos([]); }} style={{ background: C.surf2, border: `1px solid ${C.border}`, borderRadius: 10, color: C.text, fontSize: 14, padding: "14px 26px", cursor: "pointer", fontFamily: "Georgia,serif" }}>← Nueva estrategia</button>
         </div>
+      </div>
+
       </div>
 
       {/* Add Panel */}
