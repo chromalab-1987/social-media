@@ -166,6 +166,28 @@ export async function activarProduccion(clienteId, clienteNombre) {
   }
 }
 
+/* ── Meses planificados de un cliente (multi-mes / histórico) ── */
+export async function fetchMesesEstrategia(clienteId) {
+  const { data, error } = await supabase
+    .from("estrategias")
+    .select("mes, updated_at")
+    .eq("cliente_id", clienteId)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return data || [];
+}
+
+export async function fetchEstrategiaPorMes(clienteId, mes) {
+  const { data, error } = await supabase
+    .from("estrategias")
+    .select("data, updated_at")
+    .eq("cliente_id", clienteId)
+    .eq("mes", mes)
+    .maybeSingle();
+  if (error) throw error;
+  return data?.data || null;
+}
+
 /* ── Carga completa de un cliente (perfil + última estrategia) ── */
 export async function fetchDatosCliente(clienteId) {
   const [p, e] = await Promise.all([
